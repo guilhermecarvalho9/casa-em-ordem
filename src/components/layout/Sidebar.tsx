@@ -10,9 +10,10 @@ import {
   Key,
   AlertTriangle,
   Settings,
-  Home,
   X,
+  QrCode,
 } from 'lucide-react';
+import logoImg from '@/assets/logo.png';
 
 interface SidebarProps {
   currentPage: string;
@@ -30,6 +31,7 @@ const navItems = [
   { id: 'shopping', icon: ShoppingCart, labelKey: 'nav.shopping' },
   { id: 'passwords', icon: Key, labelKey: 'nav.passwords' },
   { id: 'damaged', icon: AlertTriangle, labelKey: 'nav.damaged' },
+  { id: 'qrcode', icon: QrCode, labelKey: 'nav.qrcode' },
 ];
 
 export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarProps) {
@@ -56,8 +58,8 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarP
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Home className="w-5 h-5 text-primary-foreground" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20">
+                <img src={logoImg} alt="Logo" className="w-6 h-6 object-contain" />
               </div>
               <span className="font-display font-bold text-lg text-sidebar-foreground">
                 {t('app.title')}
