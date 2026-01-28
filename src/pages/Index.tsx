@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AppProvider } from '@/contexts/AppContext';
+import { AppProvider, useApp } from '@/contexts/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { MembersPage } from '@/components/members/MembersPage';
@@ -10,9 +10,13 @@ import { ShoppingPage } from '@/components/shopping/ShoppingPage';
 import { PasswordsPage } from '@/components/passwords/PasswordsPage';
 import { DamagedPage } from '@/components/damaged/DamagedPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { QRCodePage } from '@/components/qrcode/QRCodePage';
+import { LoginPage } from '@/components/auth/LoginPage';
 
-const Index = () => {
+function AppContent() {
+  const { language } = useApp();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -32,6 +36,8 @@ const Index = () => {
         return <PasswordsPage />;
       case 'damaged':
         return <DamagedPage />;
+      case 'qrcode':
+        return <QRCodePage />;
       case 'settings':
         return <SettingsPage />;
       default:
@@ -39,11 +45,21 @@ const Index = () => {
     }
   };
 
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={() => setIsLoggedIn(true)} language={language} />;
+  }
+
+  return (
+    <AppLayout currentPage={currentPage} onPageChange={setCurrentPage}>
+      {renderPage()}
+    </AppLayout>
+  );
+}
+
+const Index = () => {
   return (
     <AppProvider>
-      <AppLayout currentPage={currentPage} onPageChange={setCurrentPage}>
-        {renderPage()}
-      </AppLayout>
+      <AppContent />
     </AppProvider>
   );
 };
