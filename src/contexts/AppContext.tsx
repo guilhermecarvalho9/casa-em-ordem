@@ -67,6 +67,16 @@ export interface DamagedItem {
   status: 'pending' | 'fixed';
 }
 
+export interface Event {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  time?: string;
+  location?: string;
+  createdBy: string;
+}
+
 interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
@@ -86,6 +96,8 @@ interface AppContextType {
   setPasswords: React.Dispatch<React.SetStateAction<Password[]>>;
   damagedItems: DamagedItem[];
   setDamagedItems: React.Dispatch<React.SetStateAction<DamagedItem[]>>;
+  events: Event[];
+  setEvents: React.Dispatch<React.SetStateAction<Event[]>>;
   t: (key: string) => string;
 }
 
@@ -95,6 +107,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.dashboard': 'Dashboard',
     'nav.members': 'Membros',
     'nav.tasks': 'Tarefas',
+    'nav.events': 'Eventos',
     'nav.rules': 'Regras',
     'nav.bills': 'Contas',
     'nav.shopping': 'Mercado',
@@ -152,6 +165,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.dashboard': 'Dashboard',
     'nav.members': 'Members',
     'nav.tasks': 'Tasks',
+    'nav.events': 'Events',
     'nav.rules': 'Rules',
     'nav.bills': 'Bills',
     'nav.shopping': 'Shopping',
@@ -246,6 +260,11 @@ const initialDamaged: DamagedItem[] = [
   { id: '1', title: 'Torneira vazando', description: 'A torneira da cozinha está pingando', location: 'Cozinha', reportedBy: '2', reportedAt: '2025-01-25', status: 'pending' },
 ];
 
+const initialEvents: Event[] = [
+  { id: '1', title: 'Reunião da casa', description: 'Discutir regras e tarefas', date: '2025-02-01', time: '19:00', location: 'Sala de estar', createdBy: '1' },
+  { id: '2', title: 'Limpeza geral', description: 'Dia de faxina coletiva', date: '2025-02-05', time: '09:00', createdBy: '1' },
+];
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>('pt');
   const [darkMode, setDarkMode] = useState(false);
@@ -256,6 +275,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(initialShopping);
   const [passwords, setPasswords] = useState<Password[]>(initialPasswords);
   const [damagedItems, setDamagedItems] = useState<DamagedItem[]>(initialDamaged);
+  const [events, setEvents] = useState<Event[]>(initialEvents);
 
   useEffect(() => {
     if (darkMode) {
@@ -290,6 +310,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPasswords,
         damagedItems,
         setDamagedItems,
+        events,
+        setEvents,
         t,
       }}
     >

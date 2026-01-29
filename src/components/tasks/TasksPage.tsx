@@ -8,11 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Check, Circle, Calendar } from 'lucide-react';
+import { Plus, Check, Circle, Calendar, Pencil, Trash2 } from 'lucide-react';
 
 export function TasksPage() {
-  const { t, tasks, setTasks, members } = useApp();
+  const { t, tasks, setTasks, members, language } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<string | null>(null);
   const [newTask, setNewTask] = useState({ title: '', assignedTo: '', dueDate: '' });
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -20,16 +21,40 @@ export function TasksPage() {
 
   const handleAddTask = () => {
     if (!newTask.title.trim()) return;
+
+    if (editingTask) {
+      setTasks(prev => prev.map(t => 
+        t.id === editingTask 
+          ? { ...t, title: newTask.title, assignedTo: newTask.assignedTo || t.assignedTo, dueDate: newTask.dueDate }
+          : t
+      ));
+      setEditingTask(null);
+    } else {
+      setTasks(prev => [...prev, {
+        id: Date.now().toString(),
+        title: newTask.title,
+        assignedTo: newTask.assignedTo || members[0]?.id || '',
+        dueDate: newTask.dueDate,
+        completed: false,
+      }]);
+    }
     
-    setTasks(prev => [...prev, {
-      id: Date.now().toString(),
-      title: newTask.title,
-      assignedTo: newTask.assignedTo || members[0]?.id || '',
-      dueDate: newTask.dueDate,
-      completed: false,
-    }]);
     setNewTask({ title: '', assignedTo: '', dueDate: '' });
     setIsOpen(false);
+  };
+
+  const handleEditTask = (task: typeof tasks[0]) => {
+    setNewTask({
+      title: task.title,
+      assignedTo: task.assignedTo,
+      dueDate: task.dueDate || '',
+    });
+    setEditingTask(task.id);
+    setIsOpen(true);
+  };
+
+  const handleDeleteTask = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   const toggleTask = (id: string) => {
@@ -43,7 +68,13 @@ export function TasksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">{t('tasks.title')}</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setEditingTask(null);
+            setNewTask({ title: '', assignedTo: '', dueDate: '' });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="btn-gradient rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
@@ -52,26 +83,30 @@ export function TasksPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-display">{t('tasks.add')}</DialogTitle>
+              <DialogTitle className="font-display">
+                {editingTask 
+                  ? (language === 'pt' ? 'Editar Tarefa' : 'Edit Task')
+                  : t('tasks.add')}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Tarefa</Label>
+                <Label>{language === 'pt' ? 'Tarefa' : 'Task'}</Label>
                 <Input
                   value={newTask.title}
                   onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Nome da tarefa"
+                  placeholder={language === 'pt' ? 'Nome da tarefa' : 'Task name'}
                   className="input-field"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Responsável</Label>
+                <Label>{language === 'pt' ? 'Responsável' : 'Assigned to'}</Label>
                 <Select
                   value={newTask.assignedTo}
                   onValueChange={(value) => setNewTask(prev => ({ ...prev, assignedTo: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
+                    <SelectValue placeholder={language === 'pt' ? 'Selecione' : 'Select'} />
                   </SelectTrigger>
                   <SelectContent>
                     {members.map(member => (
@@ -81,7 +116,7 @@ export function TasksPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Data limite</Label>
+                <Label>{language === 'pt' ? 'Data limite' : 'Due date'}</Label>
                 <Input
                   type="date"
                   value={newTask.dueDate}
@@ -112,7 +147,7 @@ export function TasksPage() {
               return (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group"
                 >
                   <Checkbox
                     checked={task.completed}
@@ -134,6 +169,24 @@ export function TasksPage() {
                       </AvatarFallback>
                     </Avatar>
                   )}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleEditTask(task)}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteTask(task.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               );
             })}
@@ -157,7 +210,7 @@ export function TasksPage() {
               return (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 group"
                 >
                   <Checkbox
                     checked={task.completed}
@@ -173,6 +226,14 @@ export function TasksPage() {
                       </AvatarFallback>
                     </Avatar>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleDeleteTask(task.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
                 </div>
               );
             })}
