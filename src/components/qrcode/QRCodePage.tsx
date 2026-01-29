@@ -43,6 +43,14 @@ export function QRCodePage() {
     return `WIFI:T:WPA;S:${wifiPassword.name};P:${wifiPassword.value};;`;
   }, [wifiPassword]);
 
+  // Generate rules-only QR data (plain text format for readability)
+  const rulesQRData = useMemo(() => {
+    if (rules.length === 0) return '';
+    const header = language === 'pt' ? '📋 REGRAS DA CASA 📋\n\n' : '📋 HOUSE RULES 📋\n\n';
+    const rulesText = rules.map((r, i) => `${i + 1}. ${r.title}\n   ${r.description}`).join('\n\n');
+    return header + rulesText;
+  }, [rules, language]);
+
   // Generate combined info for QR code
   const combinedQRData = useMemo(() => {
     const rulesText = rules.map((r, i) => `${i + 1}. ${r.title}: ${r.description}`).join('\n');
@@ -119,10 +127,14 @@ export function QRCodePage() {
       </div>
 
       <Tabs defaultValue="combined" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
           <TabsTrigger value="combined" className="gap-2">
             <Home className="w-4 h-4" />
             {language === 'pt' ? 'Completo' : 'Complete'}
+          </TabsTrigger>
+          <TabsTrigger value="rules" className="gap-2">
+            <BookOpen className="w-4 h-4" />
+            {language === 'pt' ? 'Regras' : 'Rules'}
           </TabsTrigger>
           <TabsTrigger value="wifi" className="gap-2">
             <Wifi className="w-4 h-4" />
@@ -240,6 +252,79 @@ export function QRCodePage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Rules Only QR Code Tab */}
+        <TabsContent value="rules" className="space-y-4">
+          <div className="grid lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-display">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  {language === 'pt' ? 'QR Code das Regras' : 'Rules QR Code'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4">
+                {rules.length > 0 ? (
+                  <>
+                    <div className="bg-white p-4 rounded-2xl shadow-lg">
+                      <QRCodeSVG
+                        id="rules-qr"
+                        value={rulesQRData}
+                        size={200}
+                        level="L"
+                        includeMargin
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground text-center">
+                      {language === 'pt' 
+                        ? 'Escaneie para ver as regras da casa' 
+                        : 'Scan to see house rules'}
+                    </p>
+                    <Button 
+                      onClick={() => handleDownloadQR('rules-qr', 'regras-qrcode.png')}
+                      className="btn-gradient rounded-xl gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      {language === 'pt' ? 'Baixar QR Code' : 'Download QR Code'}
+                    </Button>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">
+                      {language === 'pt' 
+                        ? 'Nenhuma regra cadastrada. Adicione em Regras.' 
+                        : 'No rules registered. Add one in Rules.'}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Rules Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-display">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  {language === 'pt' ? 'Regras no QR Code' : 'Rules in QR Code'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {rules.map((rule, index) => (
+                  <div key={rule.id} className="flex gap-3 p-3 rounded-xl bg-muted/50">
+                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium shrink-0">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="font-medium text-sm">{rule.title}</p>
+                      <p className="text-xs text-muted-foreground">{rule.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* WiFi QR Code Tab */}

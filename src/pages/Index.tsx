@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { MembersPage } from '@/components/members/MembersPage';
 import { TasksPage } from '@/components/tasks/TasksPage';
+import { EventsPage } from '@/components/events/EventsPage';
 import { RulesPage } from '@/components/rules/RulesPage';
 import { BillsPage } from '@/components/bills/BillsPage';
 import { ShoppingPage } from '@/components/shopping/ShoppingPage';
@@ -26,6 +27,8 @@ function AppContent() {
         return <MembersPage />;
       case 'tasks':
         return <TasksPage />;
+      case 'events':
+        return <EventsPage />;
       case 'rules':
         return <RulesPage />;
       case 'bills':

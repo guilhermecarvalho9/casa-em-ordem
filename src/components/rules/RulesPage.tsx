@@ -7,11 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, BookOpen, User } from 'lucide-react';
+import { Plus, BookOpen, Pencil, Trash2 } from 'lucide-react';
 
 export function RulesPage() {
-  const { t, rules, setRules, members } = useApp();
+  const { t, rules, setRules, members, language } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<string | null>(null);
   const [newRule, setNewRule] = useState({ title: '', description: '' });
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -20,21 +21,47 @@ export function RulesPage() {
   const handleAddRule = () => {
     if (!newRule.title.trim()) return;
     
-    setRules(prev => [...prev, {
-      id: Date.now().toString(),
-      title: newRule.title,
-      description: newRule.description,
-      createdBy: members[0]?.id || '',
-    }]);
+    if (editingRule) {
+      setRules(prev => prev.map(r => 
+        r.id === editingRule 
+          ? { ...r, title: newRule.title, description: newRule.description }
+          : r
+      ));
+      setEditingRule(null);
+    } else {
+      setRules(prev => [...prev, {
+        id: Date.now().toString(),
+        title: newRule.title,
+        description: newRule.description,
+        createdBy: members[0]?.id || '',
+      }]);
+    }
+    
     setNewRule({ title: '', description: '' });
     setIsOpen(false);
+  };
+
+  const handleEditRule = (rule: typeof rules[0]) => {
+    setNewRule({ title: rule.title, description: rule.description });
+    setEditingRule(rule.id);
+    setIsOpen(true);
+  };
+
+  const handleDeleteRule = (id: string) => {
+    setRules(prev => prev.filter(r => r.id !== id));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">{t('rules.title')}</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setEditingRule(null);
+            setNewRule({ title: '', description: '' });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="btn-gradient rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
@@ -43,24 +70,28 @@ export function RulesPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-display">{t('rules.add')}</DialogTitle>
+              <DialogTitle className="font-display">
+                {editingRule 
+                  ? (language === 'pt' ? 'Editar Regra' : 'Edit Rule')
+                  : t('rules.add')}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Título</Label>
+                <Label>{language === 'pt' ? 'Título' : 'Title'}</Label>
                 <Input
                   value={newRule.title}
                   onChange={(e) => setNewRule(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Nome da regra"
+                  placeholder={language === 'pt' ? 'Nome da regra' : 'Rule name'}
                   className="input-field"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Descrição</Label>
+                <Label>{language === 'pt' ? 'Descrição' : 'Description'}</Label>
                 <Textarea
                   value={newRule.description}
                   onChange={(e) => setNewRule(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Descreva a regra"
+                  placeholder={language === 'pt' ? 'Descreva a regra' : 'Describe the rule'}
                   className="input-field min-h-24"
                 />
               </div>
@@ -73,10 +104,10 @@ export function RulesPage() {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
-        {rules.map((rule, index) => {
+        {rules.map((rule) => {
           const creator = getMemberById(rule.createdBy);
           return (
-            <Card key={rule.id} className="card-hover">
+            <Card key={rule.id} className="card-hover group">
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
@@ -95,6 +126,24 @@ export function RulesPage() {
                         <span className="text-xs text-muted-foreground">{creator.name}</span>
                       </div>
                     )}
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleEditRule(rule)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteRule(rule.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
