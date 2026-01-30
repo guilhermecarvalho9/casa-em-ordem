@@ -13,6 +13,8 @@ import { DamagedPage } from '@/components/damaged/DamagedPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { QRCodePage } from '@/components/qrcode/QRCodePage';
 import { LoginPage } from '@/components/auth/LoginPage';
+import { ProfilePage } from '@/components/profile/ProfilePage';
+import { AddressPage } from '@/components/address/AddressPage';
 
 function AppContent() {
   const { language } = useApp();
@@ -23,6 +25,10 @@ function AppContent() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
+      case 'profile':
+        return <ProfilePage />;
+      case 'address':
+        return <AddressPage />;
       case 'members':
         return <MembersPage />;
       case 'tasks':
