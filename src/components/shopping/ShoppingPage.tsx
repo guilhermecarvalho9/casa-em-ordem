@@ -8,11 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, ShoppingCart, Check, Circle, User } from 'lucide-react';
+import { Plus, ShoppingCart, Check, Circle, User, Pencil, Trash2 } from 'lucide-react';
 
 export function ShoppingPage() {
   const { t, shoppingItems, setShoppingItems, members } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({ name: '', quantity: '1', addedBy: '' });
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -21,15 +22,43 @@ export function ShoppingPage() {
   const handleAddItem = () => {
     if (!newItem.name.trim()) return;
     
-    setShoppingItems(prev => [...prev, {
-      id: Date.now().toString(),
-      name: newItem.name,
-      quantity: parseInt(newItem.quantity) || 1,
-      addedBy: newItem.addedBy || members[0]?.id || '',
-      bought: false,
-    }]);
+    if (editingItem) {
+      setShoppingItems(prev => prev.map(item => 
+        item.id === editingItem 
+          ? { 
+              ...item, 
+              name: newItem.name, 
+              quantity: parseInt(newItem.quantity) || 1,
+              addedBy: newItem.addedBy || members[0]?.id || '',
+            }
+          : item
+      ));
+      setEditingItem(null);
+    } else {
+      setShoppingItems(prev => [...prev, {
+        id: Date.now().toString(),
+        name: newItem.name,
+        quantity: parseInt(newItem.quantity) || 1,
+        addedBy: newItem.addedBy || members[0]?.id || '',
+        bought: false,
+      }]);
+    }
     setNewItem({ name: '', quantity: '1', addedBy: '' });
     setIsOpen(false);
+  };
+
+  const handleEditItem = (item: typeof shoppingItems[0]) => {
+    setNewItem({
+      name: item.name,
+      quantity: item.quantity.toString(),
+      addedBy: item.addedBy,
+    });
+    setEditingItem(item.id);
+    setIsOpen(true);
+  };
+
+  const handleDeleteItem = (id: string) => {
+    setShoppingItems(prev => prev.filter(item => item.id !== id));
   };
 
   const toggleBought = (id: string, boughtBy: string) => {
@@ -45,7 +74,13 @@ export function ShoppingPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">{t('shopping.title')}</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setEditingItem(null);
+            setNewItem({ name: '', quantity: '1', addedBy: '' });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="btn-gradient rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
@@ -54,7 +89,9 @@ export function ShoppingPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-display">{t('shopping.add')}</DialogTitle>
+              <DialogTitle className="font-display">
+                {editingItem ? 'Editar Item' : t('shopping.add')}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -135,6 +172,24 @@ export function ShoppingPage() {
                       <span>adicionou</span>
                     </div>
                   )}
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleEditItem(item)}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteItem(item.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               );
             })}
@@ -178,6 +233,16 @@ export function ShoppingPage() {
                       <span>comprou</span>
                     </div>
                   )}
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteItem(item.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               );
             })}

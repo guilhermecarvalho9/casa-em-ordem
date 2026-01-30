@@ -6,13 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Key, Wifi, Tv, Lock, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { Plus, Key, Wifi, Tv, Lock, Eye, EyeOff, Copy, Check, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function PasswordsPage() {
   const { t, passwords, setPasswords } = useApp();
   const [isOpen, setIsOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState({ name: '', value: '', category: 'wifi' as const });
+  const [editingPassword, setEditingPassword] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState({ name: '', value: '', category: 'wifi' as 'wifi' | 'streaming' | 'other' });
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -31,14 +32,37 @@ export function PasswordsPage() {
   const handleAddPassword = () => {
     if (!newPassword.name.trim() || !newPassword.value.trim()) return;
     
-    setPasswords(prev => [...prev, {
-      id: Date.now().toString(),
-      name: newPassword.name,
-      value: newPassword.value,
-      category: newPassword.category,
-    }]);
+    if (editingPassword) {
+      setPasswords(prev => prev.map(pwd => 
+        pwd.id === editingPassword 
+          ? { ...pwd, name: newPassword.name, value: newPassword.value, category: newPassword.category }
+          : pwd
+      ));
+      setEditingPassword(null);
+    } else {
+      setPasswords(prev => [...prev, {
+        id: Date.now().toString(),
+        name: newPassword.name,
+        value: newPassword.value,
+        category: newPassword.category,
+      }]);
+    }
     setNewPassword({ name: '', value: '', category: 'wifi' });
     setIsOpen(false);
+  };
+
+  const handleEditPassword = (pwd: typeof passwords[0]) => {
+    setNewPassword({
+      name: pwd.name,
+      value: pwd.value,
+      category: pwd.category,
+    });
+    setEditingPassword(pwd.id);
+    setIsOpen(true);
+  };
+
+  const handleDeletePassword = (id: string) => {
+    setPasswords(prev => prev.filter(pwd => pwd.id !== id));
   };
 
   const toggleVisibility = (id: string) => {
@@ -62,7 +86,13 @@ export function PasswordsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">{t('passwords.title')}</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setEditingPassword(null);
+            setNewPassword({ name: '', value: '', category: 'wifi' });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="btn-gradient rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
@@ -71,7 +101,9 @@ export function PasswordsPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-display">{t('passwords.add')}</DialogTitle>
+              <DialogTitle className="font-display">
+                {editingPassword ? 'Editar Senha' : t('passwords.add')}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -165,6 +197,21 @@ export function PasswordsPage() {
                         ) : (
                           <Copy className="w-4 h-4" />
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditPassword(pwd)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDeletePassword(pwd.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

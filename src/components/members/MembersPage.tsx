@@ -8,11 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Calendar, Shield, User } from 'lucide-react';
+import { Plus, Calendar, Shield, User, Pencil, Trash2 } from 'lucide-react';
 
 export function MembersPage() {
   const { t, members, setMembers } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<string | null>(null);
   const [newMember, setNewMember] = useState<{ name: string; role: 'admin' | 'member'; color: string }>({ name: '', role: 'member', color: '#0D9488' });
 
   const colors = ['#0D9488', '#F59E0B', '#8B5CF6', '#EF4444', '#10B981', '#3B82F6'];
@@ -24,23 +25,52 @@ export function MembersPage() {
   const handleAddMember = () => {
     if (!newMember.name.trim()) return;
     
-    setMembers(prev => [...prev, {
-      id: Date.now().toString(),
-      name: newMember.name,
-      avatar: '',
-      entryDate: new Date().toISOString().split('T')[0],
-      role: newMember.role,
-      color: newMember.color,
-    }]);
+    if (editingMember) {
+      setMembers(prev => prev.map(m => 
+        m.id === editingMember 
+          ? { ...m, name: newMember.name, role: newMember.role, color: newMember.color }
+          : m
+      ));
+      setEditingMember(null);
+    } else {
+      setMembers(prev => [...prev, {
+        id: Date.now().toString(),
+        name: newMember.name,
+        avatar: '',
+        entryDate: new Date().toISOString().split('T')[0],
+        role: newMember.role,
+        color: newMember.color,
+      }]);
+    }
     setNewMember({ name: '', role: 'member', color: '#0D9488' });
     setIsOpen(false);
+  };
+
+  const handleEditMember = (member: typeof members[0]) => {
+    setNewMember({
+      name: member.name,
+      role: member.role,
+      color: member.color,
+    });
+    setEditingMember(member.id);
+    setIsOpen(true);
+  };
+
+  const handleDeleteMember = (id: string) => {
+    setMembers(prev => prev.filter(m => m.id !== id));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">{t('members.title')}</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setEditingMember(null);
+            setNewMember({ name: '', role: 'member', color: '#0D9488' });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="btn-gradient rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
@@ -49,7 +79,9 @@ export function MembersPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-display">{t('members.add')}</DialogTitle>
+              <DialogTitle className="font-display">
+                {editingMember ? 'Editar Membro' : t('members.add')}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -123,6 +155,24 @@ export function MembersPage() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
                   {t('members.entry')}: {member.entryDate}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleEditMember(member)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteMember(member.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
