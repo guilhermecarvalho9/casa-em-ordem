@@ -9,17 +9,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Receipt, DollarSign, Calendar, Check, Clock, Home, Zap, Wifi, HelpCircle } from 'lucide-react';
+import { Plus, Receipt, DollarSign, Calendar, Check, Clock, Home, Zap, Wifi, HelpCircle, Pencil, Trash2 } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 
 export function BillsPage() {
   const { t, bills, setBills, members } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingBill, setEditingBill] = useState<string | null>(null);
   const [newBill, setNewBill] = useState({
     title: '',
     amount: '',
     dueDate: '',
-    category: 'other' as const,
+    category: 'other' as 'rent' | 'utilities' | 'internet' | 'other',
     splitBetween: [] as string[],
   });
 
@@ -36,17 +37,49 @@ export function BillsPage() {
   const handleAddBill = () => {
     if (!newBill.title.trim() || !newBill.amount) return;
     
-    setBills(prev => [...prev, {
-      id: Date.now().toString(),
-      title: newBill.title,
-      amount: parseFloat(newBill.amount),
-      dueDate: newBill.dueDate,
-      category: newBill.category,
-      splitBetween: newBill.splitBetween.length > 0 ? newBill.splitBetween : members.map(m => m.id),
-      paid: false,
-    }]);
+    if (editingBill) {
+      setBills(prev => prev.map(b => 
+        b.id === editingBill 
+          ? { 
+              ...b, 
+              title: newBill.title,
+              amount: parseFloat(newBill.amount),
+              dueDate: newBill.dueDate,
+              category: newBill.category,
+              splitBetween: newBill.splitBetween.length > 0 ? newBill.splitBetween : members.map(m => m.id),
+            }
+          : b
+      ));
+      setEditingBill(null);
+    } else {
+      setBills(prev => [...prev, {
+        id: Date.now().toString(),
+        title: newBill.title,
+        amount: parseFloat(newBill.amount),
+        dueDate: newBill.dueDate,
+        category: newBill.category,
+        splitBetween: newBill.splitBetween.length > 0 ? newBill.splitBetween : members.map(m => m.id),
+        paid: false,
+      }]);
+    }
     setNewBill({ title: '', amount: '', dueDate: '', category: 'other', splitBetween: [] });
     setIsOpen(false);
+  };
+
+  const handleEditBill = (bill: typeof bills[0]) => {
+    setNewBill({
+      title: bill.title,
+      amount: bill.amount.toString(),
+      dueDate: bill.dueDate,
+      category: bill.category,
+      splitBetween: bill.splitBetween,
+    });
+    setEditingBill(bill.id);
+    setIsOpen(true);
+  };
+
+  const handleDeleteBill = (id: string) => {
+    setBills(prev => prev.filter(b => b.id !== id));
   };
 
   const togglePaid = (id: string) => {
@@ -61,7 +94,13 @@ export function BillsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">{t('bills.title')}</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setEditingBill(null);
+            setNewBill({ title: '', amount: '', dueDate: '', category: 'other', splitBetween: [] });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="btn-gradient rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
@@ -70,7 +109,9 @@ export function BillsPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-display">{t('bills.add')}</DialogTitle>
+              <DialogTitle className="font-display">
+                {editingBill ? 'Editar Conta' : t('bills.add')}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -204,16 +245,36 @@ export function BillsPage() {
                     </div>
                   </div>
                   
-                  <div className="text-right">
-                    <p className="text-xl font-bold">R$ {bill.amount.toFixed(2)}</p>
-                    <Button
-                      size="sm"
-                      variant={bill.paid ? 'outline' : 'default'}
-                      onClick={() => togglePaid(bill.id)}
-                      className="mt-2"
-                    >
-                      {bill.paid ? 'Desfazer' : 'Marcar Pago'}
-                    </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right mr-2">
+                      <p className="text-xl font-bold">R$ {bill.amount.toFixed(2)}</p>
+                      <Button
+                        size="sm"
+                        variant={bill.paid ? 'outline' : 'default'}
+                        onClick={() => togglePaid(bill.id)}
+                        className="mt-2"
+                      >
+                        {bill.paid ? 'Desfazer' : 'Marcar Pago'}
+                      </Button>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleEditBill(bill)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteBill(bill.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
