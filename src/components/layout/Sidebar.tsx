@@ -13,6 +13,7 @@ import {
   X,
   QrCode,
   CalendarDays,
+  MapPin,
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 
@@ -25,6 +26,8 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
+  { id: 'profile', icon: Users, labelKey: 'nav.profile' },
+  { id: 'address', icon: MapPin, labelKey: 'nav.address' },
   { id: 'members', icon: Users, labelKey: 'nav.members' },
   { id: 'tasks', icon: CheckSquare, labelKey: 'nav.tasks' },
   { id: 'events', icon: CalendarDays, labelKey: 'nav.events' },

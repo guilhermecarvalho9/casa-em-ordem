@@ -169,7 +169,7 @@ export function TasksPage() {
                       </AvatarFallback>
                     </Avatar>
                   )}
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -229,7 +229,7 @@ export function TasksPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
                     onClick={() => handleDeleteTask(task.id)}
                   >
                     <Trash2 className="w-3 h-3" />

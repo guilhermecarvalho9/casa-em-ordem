@@ -105,6 +105,8 @@ const translations: Record<Language, Record<string, string>> = {
   pt: {
     'app.title': 'Casa Organizada',
     'nav.dashboard': 'Dashboard',
+    'nav.profile': 'Perfil',
+    'nav.address': 'Endereço',
     'nav.members': 'Membros',
     'nav.tasks': 'Tarefas',
     'nav.events': 'Eventos',
@@ -163,6 +165,8 @@ const translations: Record<Language, Record<string, string>> = {
   en: {
     'app.title': 'Home Organized',
     'nav.dashboard': 'Dashboard',
+    'nav.profile': 'Profile',
+    'nav.address': 'Address',
     'nav.members': 'Members',
     'nav.tasks': 'Tasks',
     'nav.events': 'Events',
