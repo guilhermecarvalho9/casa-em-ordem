@@ -431,6 +431,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_house_with_admin: {
+        Args: { _address?: string; _name: string }
+        Returns: string
+      }
       get_user_house_ids: { Args: { _user_id: string }; Returns: string[] }
       is_house_admin: {
         Args: { _house_id: string; _user_id: string }

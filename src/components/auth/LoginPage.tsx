@@ -2,18 +2,19 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Home, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import logoImg from '@/assets/logo.png';
 
 interface LoginPageProps {
-  onLogin: () => void;
   language: 'pt' | 'en';
 }
 
-export function LoginPage({ onLogin, language }: LoginPageProps) {
+export function LoginPage({ language }: LoginPageProps) {
+  const { signIn, signUp } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -29,11 +30,21 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
     }
     
     setIsLoading(true);
-    // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const { error } = await signIn(loginData.email, loginData.password);
     setIsLoading(false);
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        toast.error(t('Email ou senha incorretos', 'Invalid email or password'));
+      } else if (error.message.includes('Email not confirmed')) {
+        toast.error(t('Por favor, confirme seu email antes de entrar', 'Please confirm your email before signing in'));
+      } else {
+        toast.error(error.message);
+      }
+      return;
+    }
+    
     toast.success(t('Login realizado com sucesso!', 'Login successful!'));
-    onLogin();
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -42,13 +53,29 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
       toast.error(t('Preencha todos os campos', 'Fill in all fields'));
       return;
     }
+
+    if (registerData.password.length < 6) {
+      toast.error(t('A senha deve ter pelo menos 6 caracteres', 'Password must be at least 6 characters'));
+      return;
+    }
     
     setIsLoading(true);
-    // Simulate registration
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const { error } = await signUp(registerData.email, registerData.password, registerData.name);
     setIsLoading(false);
-    toast.success(t('Conta criada com sucesso!', 'Account created successfully!'));
-    onLogin();
+
+    if (error) {
+      if (error.message.includes('already registered')) {
+        toast.error(t('Este email já está cadastrado', 'This email is already registered'));
+      } else {
+        toast.error(error.message);
+      }
+      return;
+    }
+    
+    toast.success(t(
+      'Conta criada! Verifique seu email para confirmar o cadastro.',
+      'Account created! Check your email to confirm registration.'
+    ));
   };
 
   return (
@@ -92,6 +119,7 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                         className="pl-10 input-field"
                         value={loginData.email}
                         onChange={(e) => setLoginData(prev => ({ ...prev, email: e.target.value }))}
+                        disabled={isLoading}
                       />
                     </div>
                   </div>
@@ -106,6 +134,7 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                         className="pl-10 pr-10 input-field"
                         value={loginData.password}
                         onChange={(e) => setLoginData(prev => ({ ...prev, password: e.target.value }))}
+                        disabled={isLoading}
                       />
                       <button
                         type="button"
@@ -121,7 +150,14 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                     className="w-full btn-gradient rounded-xl h-11"
                     disabled={isLoading}
                   >
-                    {isLoading ? t('Entrando...', 'Logging in...') : t('Entrar', 'Login')}
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {t('Entrando...', 'Logging in...')}
+                      </>
+                    ) : (
+                      t('Entrar', 'Login')
+                    )}
                   </Button>
                 </form>
               </TabsContent>
@@ -140,6 +176,7 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                         className="pl-10 input-field"
                         value={registerData.name}
                         onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))}
+                        disabled={isLoading}
                       />
                     </div>
                   </div>
@@ -154,6 +191,7 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                         className="pl-10 input-field"
                         value={registerData.email}
                         onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
+                        disabled={isLoading}
                       />
                     </div>
                   </div>
@@ -168,6 +206,7 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                         className="pl-10 pr-10 input-field"
                         value={registerData.password}
                         onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))}
+                        disabled={isLoading}
                       />
                       <button
                         type="button"
@@ -183,7 +222,14 @@ export function LoginPage({ onLogin, language }: LoginPageProps) {
                     className="w-full btn-gradient rounded-xl h-11"
                     disabled={isLoading}
                   >
-                    {isLoading ? t('Criando...', 'Creating...') : t('Criar Conta', 'Sign Up')}
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {t('Criando...', 'Creating...')}
+                      </>
+                    ) : (
+                      t('Criar Conta', 'Sign Up')
+                    )}
                   </Button>
                 </form>
               </TabsContent>
