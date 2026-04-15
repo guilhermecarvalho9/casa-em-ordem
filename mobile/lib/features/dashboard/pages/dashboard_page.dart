@@ -102,7 +102,7 @@ class DashboardPage extends ConsumerWidget {
           const SizedBox(height: 20),
 
           Text(
-            'Resumo',
+            t('dashboard.summary'),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -159,7 +159,8 @@ class DashboardPage extends ConsumerWidget {
           // Recent tasks
           if (tasks.valueOrNull?.isNotEmpty == true) ...[
             _SectionHeader(
-              title: 'Tarefas Recentes',
+              title: t('dashboard.recentTasks'),
+              seeAllLabel: t('common.seeAll'),
               onSeeAll: () => ref.read(currentPageProvider.notifier).state = 'tasks',
               isDark: isDark,
             ),
@@ -174,7 +175,8 @@ class DashboardPage extends ConsumerWidget {
           // Recent bills
           if (bills.valueOrNull?.isNotEmpty == true) ...[
             _SectionHeader(
-              title: 'Contas Pendentes',
+              title: t('dashboard.pendingBills'),
+              seeAllLabel: t('common.seeAll'),
               onSeeAll: () => ref.read(currentPageProvider.notifier).state = 'bills',
               isDark: isDark,
             ),
@@ -271,10 +273,11 @@ class _StatCard extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
+  final String seeAllLabel;
   final VoidCallback? onSeeAll;
   final bool isDark;
 
-  const _SectionHeader({required this.title, this.onSeeAll, required this.isDark});
+  const _SectionHeader({required this.title, this.seeAllLabel = 'Ver todos', this.onSeeAll, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +301,7 @@ class _SectionHeader extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
-              'Ver todos',
+              seeAllLabel,
               style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AppColors.primary,

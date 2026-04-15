@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
 import '../models/auth_models.dart';
 
 class AuthState {
@@ -29,7 +31,8 @@ class AuthState {
       user: clearUser ? null : (user ?? this.user),
       profile: clearUser ? null : (profile ?? this.profile),
       currentHouse: clearUser ? null : (currentHouse ?? this.currentHouse),
-      houseMembership: clearUser ? null : (houseMembership ?? this.houseMembership),
+      houseMembership:
+          clearUser ? null : (houseMembership ?? this.houseMembership),
       loading: loading ?? this.loading,
     );
   }
@@ -40,84 +43,89 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _init();
   }
 
-  final _supabase = Supabase.instance.client;
+  final _auth = FirebaseAuth.instance;
+  final _db = FirebaseFirestore.instance;
 
   void _init() {
-    _supabase.auth.onAuthStateChange.listen((data) async {
-      final user = data.session?.user;
+    _auth.authStateChanges().listen((user) async {
       if (user != null) {
         await _fetchUserData(user);
       } else {
         state = const AuthState(loading: false);
       }
     });
-
-    final currentUser = _supabase.auth.currentUser;
-    if (currentUser != null) {
-      _fetchUserData(currentUser);
-    } else {
-      state = state.copyWith(loading: false);
-    }
   }
 
   Future<void> _fetchUserData(User user) async {
     state = state.copyWith(user: user, loading: true);
     await Future.wait([
-      _fetchProfile(user.id),
-      _fetchHouseMembership(user.id),
+      _fetchProfile(user.uid),
+      _fetchHouseMembership(user.uid),
     ]);
     state = state.copyWith(loading: false);
   }
 
-  Future<void> _fetchProfile(String userId) async {
+  Future<void> _fetchProfile(String uid) async {
     try {
-      final data = await _supabase
-          .from('profiles')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
-      if (data != null) {
-        state = state.copyWith(profile: UserProfile.fromMap(data));
+      final doc = await _db.collection('users').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        state = state.copyWith(
+          profile: UserProfile.fromMap(uid, doc.data()!),
+        );
       }
     } catch (_) {}
   }
 
-  Future<void> _fetchHouseMembership(String userId) async {
+  Future<void> _fetchHouseMembership(String uid) async {
     try {
-      final memberData = await _supabase
-          .from('house_members')
-          .select()
-          .eq('user_id', userId)
-          .limit(1)
-          .maybeSingle();
+      final userDoc = await _db.collection('users').doc(uid).get();
+      final houseId = userDoc.data()?['houseId'] as String?;
 
-      if (memberData != null) {
-        final membership = HouseMember.fromMap(memberData);
-        final houseData = await _supabase
-            .from('houses')
-            .select()
-            .eq('id', membership.houseId)
-            .single();
-        state = state.copyWith(
-          houseMembership: membership,
-          currentHouse: House.fromMap(houseData),
-        );
-      } else {
+      if (houseId == null || houseId.isEmpty) {
         state = AuthState(
           user: state.user,
           profile: state.profile,
           loading: false,
         );
+        return;
       }
+
+      final houseDoc = await _db.collection('houses').doc(houseId).get();
+      if (!houseDoc.exists) {
+        state = AuthState(
+          user: state.user,
+          profile: state.profile,
+          loading: false,
+        );
+        return;
+      }
+
+      final memberDoc =
+          await _db.collection('houses').doc(houseId).collection('members').doc(uid).get();
+
+      if (!memberDoc.exists) {
+        state = AuthState(
+          user: state.user,
+          profile: state.profile,
+          loading: false,
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        currentHouse: House.fromMap(houseId, houseDoc.data()!),
+        houseMembership:
+            HouseMember.fromMap(uid, houseId, memberDoc.data()!),
+      );
     } catch (_) {}
   }
 
   Future<String?> signIn(String email, String password) async {
     try {
-      await _supabase.auth.signInWithPassword(email: email, password: password);
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
       return null;
-    } on AuthException catch (e) {
-      return e.message;
+    } on FirebaseAuthException catch (e) {
+      return _authErrorMessage(e.code);
     } catch (e) {
       return e.toString();
     }
@@ -125,14 +133,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<String?> signUp(String email, String password, String name) async {
     try {
-      await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {'name': name},
-      );
+      final cred = await _auth.createUserWithEmailAndPassword(
+          email: email, password: password);
+      final uid = cred.user!.uid;
+
+      await _db.collection('users').doc(uid).set({
+        'name': name,
+        'email': email,
+        'color': '#2A9D90',
+        'houseId': '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       return null;
-    } on AuthException catch (e) {
-      return e.message;
+    } on FirebaseAuthException catch (e) {
+      return _authErrorMessage(e.code);
     } catch (e) {
       return e.toString();
     }
@@ -140,29 +155,51 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<String?> resetPassword(String email) async {
     try {
-      await _supabase.auth.resetPasswordForEmail(email);
+      await _auth.sendPasswordResetEmail(email: email);
       return null;
-    } on AuthException catch (e) {
-      return e.message;
+    } on FirebaseAuthException catch (e) {
+      return _authErrorMessage(e.code);
     } catch (e) {
       return e.toString();
     }
   }
 
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    await _auth.signOut();
     state = const AuthState(loading: false);
   }
 
   Future<String?> createHouse(String name, {String? address}) async {
     try {
-      await _supabase.rpc('create_house_with_admin', params: {
-        '_name': name,
-        '_address': address,
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return 'Usuário não autenticado';
+
+      final inviteCode = const Uuid().v4().substring(0, 8).toUpperCase();
+      final houseRef = _db.collection('houses').doc();
+
+      final batch = _db.batch();
+
+      batch.set(houseRef, {
+        'name': name,
+        if (address != null && address.isNotEmpty) 'address': address,
+        'inviteCode': inviteCode,
+        'createdAt': FieldValue.serverTimestamp(),
       });
-      if (state.user != null) {
-        await _fetchHouseMembership(state.user!.id);
-      }
+
+      batch.set(houseRef.collection('members').doc(uid), {
+        'userId': uid,
+        'role': 'admin',
+        'entryDate': DateTime.now().toIso8601String().substring(0, 10),
+        'name': state.profile?.name ?? '',
+        'color': state.profile?.color ?? '#2A9D90',
+      });
+
+      batch.update(_db.collection('users').doc(uid), {
+        'houseId': houseRef.id,
+      });
+
+      await batch.commit();
+      await _fetchHouseMembership(uid);
       return null;
     } catch (e) {
       return e.toString();
@@ -171,21 +208,36 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<String?> joinHouse(String inviteCode) async {
     try {
-      final houseData = await _supabase
-          .from('houses')
-          .select('id')
-          .eq('invite_code', inviteCode)
-          .maybeSingle();
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return 'Usuário não autenticado';
 
-      if (houseData == null) return 'Código de convite inválido';
+      final query = await _db
+          .collection('houses')
+          .where('inviteCode', isEqualTo: inviteCode.trim().toUpperCase())
+          .limit(1)
+          .get();
 
-      await _supabase.from('house_members').insert({
-        'house_id': houseData['id'],
-        'user_id': state.user!.id,
+      if (query.docs.isEmpty) return 'Código de convite inválido';
+
+      final houseDoc = query.docs.first;
+      final houseId = houseDoc.id;
+
+      final batch = _db.batch();
+
+      batch.set(houseDoc.reference.collection('members').doc(uid), {
+        'userId': uid,
         'role': 'member',
+        'entryDate': DateTime.now().toIso8601String().substring(0, 10),
+        'name': state.profile?.name ?? '',
+        'color': state.profile?.color ?? '#2A9D90',
       });
 
-      await _fetchHouseMembership(state.user!.id);
+      batch.update(_db.collection('users').doc(uid), {
+        'houseId': houseId,
+      });
+
+      await batch.commit();
+      await _fetchHouseMembership(uid);
       return null;
     } catch (e) {
       return e.toString();
@@ -193,30 +245,67 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> refreshHouse() async {
-    if (state.user != null) {
-      await _fetchHouseMembership(state.user!.id);
-    }
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) await _fetchHouseMembership(uid);
   }
 
-  Future<void> updateProfile({String? name, String? phone, String? birthDate, String? occupation}) async {
-    if (state.user == null) return;
+  Future<void> updateProfile({String? name}) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
     try {
       final updates = <String, dynamic>{};
       if (name != null) updates['name'] = name;
-      if (phone != null) updates['phone'] = phone;
-      if (birthDate != null) updates['birth_date'] = birthDate;
-      if (occupation != null) updates['occupation'] = occupation;
 
-      await _supabase
-          .from('profiles')
-          .update(updates)
-          .eq('id', state.user!.id);
+      await _db.collection('users').doc(uid).update(updates);
 
-      await _fetchProfile(state.user!.id);
+      // Also update name in house member doc for denormalization
+      if (name != null && state.currentHouse != null) {
+        await _db
+            .collection('houses')
+            .doc(state.currentHouse!.id)
+            .collection('members')
+            .doc(uid)
+            .update({'name': name});
+      }
+
+      await _fetchProfile(uid);
     } catch (_) {}
+  }
+
+  Future<String?> updateHouseAddress(String address) async {
+    final houseId = state.currentHouse?.id;
+    final uid = _auth.currentUser?.uid;
+    if (houseId == null || uid == null) return 'Erro: casa não encontrada';
+    try {
+      await _db.collection('houses').doc(houseId).update({'address': address});
+      await _fetchHouseMembership(uid);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  String _authErrorMessage(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'Usuário não encontrado';
+      case 'wrong-password':
+        return 'Senha incorreta';
+      case 'invalid-credential':
+        return 'Email ou senha inválidos';
+      case 'email-already-in-use':
+        return 'Este email já está em uso';
+      case 'weak-password':
+        return 'Senha muito fraca (mínimo 6 caracteres)';
+      case 'invalid-email':
+        return 'Email inválido';
+      case 'too-many-requests':
+        return 'Muitas tentativas. Tente novamente mais tarde';
+      default:
+        return 'Erro de autenticação: $code';
+    }
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
-});
+final authProvider =
+    StateNotifierProvider<AuthNotifier, AuthState>((ref) => AuthNotifier());

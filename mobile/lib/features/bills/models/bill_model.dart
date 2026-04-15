@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class BillModel {
   final String id;
   final String houseId;
@@ -25,19 +27,21 @@ class BillModel {
     required this.createdAt,
   });
 
-  factory BillModel.fromMap(Map<String, dynamic> map) {
+  factory BillModel.fromMap(String id, Map<String, dynamic> map) {
     return BillModel(
-      id: map['id'] as String,
-      houseId: map['house_id'] as String,
+      id: id,
+      houseId: map['houseId'] as String? ?? '',
       title: map['title'] as String,
       amount: (map['amount'] as num).toDouble(),
-      dueDate: map['due_date'] as String,
+      dueDate: map['dueDate'] as String,
       paid: map['paid'] as bool? ?? false,
-      paidBy: map['paid_by'] as String?,
-      splitBetween: List<String>.from(map['split_between'] as List? ?? []),
+      paidBy: map['paidBy'] as String?,
+      splitBetween: List<String>.from(map['splitBetween'] as List? ?? []),
       category: map['category'] as String? ?? 'other',
-      createdBy: map['created_by'] as String?,
-      createdAt: map['created_at'] as String? ?? '',
+      createdBy: map['createdBy'] as String?,
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
+          : (map['createdAt'] as String? ?? ''),
     );
   }
 

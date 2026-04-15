@@ -39,7 +39,7 @@ class MembersPage extends ConsumerWidget {
                 itemBuilder: (context, i) => _MemberCard(
                   member: members[i],
                   isDark: isDark,
-                  isCurrentUser: members[i].userId == authState.user?.id,
+                  isCurrentUser: members[i].userId == authState.user?.uid,
                   t: t,
                   onDelete: authState.houseMembership?.isAdmin == true
                       ? () => _confirmDelete(context, ref, members[i], t)
@@ -49,7 +49,7 @@ class MembersPage extends ConsumerWidget {
       ),
       floatingActionButton: authState.houseMembership?.isAdmin == true
           ? FloatingActionButton(
-              onPressed: () => _showInviteCode(context, authState.currentHouse?.inviteCode ?? '', isDark),
+              onPressed: () => _showInviteCode(context, authState.currentHouse?.inviteCode ?? '', isDark, t),
               child: const Icon(Icons.share_rounded),
             )
           : null,
@@ -61,7 +61,7 @@ class MembersPage extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(t('common.confirm')),
-        content: Text('Remover ${member.name} da casa?'),
+        content: Text('${t('members.removeConfirm')} ${member.name}'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.cancel'))),
           TextButton(
@@ -76,15 +76,15 @@ class MembersPage extends ConsumerWidget {
     );
   }
 
-  void _showInviteCode(BuildContext context, String code, bool isDark) {
+  void _showInviteCode(BuildContext context, String code, bool isDark, String Function(String) t) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Código de Convite', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        title: Text(t('members.inviteTitle'), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Compartilhe este código para convidar membros:', style: GoogleFonts.inter(fontSize: 13)),
+            Text(t('members.inviteShare'), style: GoogleFonts.inter(fontSize: 13)),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -106,7 +106,7 @@ class MembersPage extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.close'))),
         ],
       ),
     );
@@ -157,7 +157,7 @@ class _MemberCard extends StatelessWidget {
                     ),
                     if (isCurrentUser) ...[
                       const SizedBox(width: 6),
-                      StatusBadge(label: 'Você', type: BadgeType.info),
+                      StatusBadge(label: t('members.you'), type: BadgeType.info),
                     ],
                   ],
                 ),

@@ -117,7 +117,7 @@ class _DamagedPageState extends ConsumerState<DamagedPage>
                     TextFormField(
                       controller: titleCtrl,
                       decoration: InputDecoration(labelText: t('common.title')),
-                      validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                      validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -131,7 +131,7 @@ class _DamagedPageState extends ConsumerState<DamagedPage>
                       decoration: InputDecoration(
                           labelText: t('damaged.location'),
                           prefixIcon: const Icon(Icons.location_on_outlined, size: 18)),
-                      validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                      validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
@@ -141,7 +141,7 @@ class _DamagedPageState extends ConsumerState<DamagedPage>
                         if (img != null) setState2(() => pickedImage = File(img.path));
                       },
                       icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                      label: Text(pickedImage != null ? 'Foto adicionada ✓' : 'Tirar foto'),
+                      label: Text(pickedImage != null ? t('damaged.photoAdded') : t('damaged.takePhoto')),
                     ),
                     const SizedBox(height: 20),
                     SizedBox(
@@ -154,7 +154,7 @@ class _DamagedPageState extends ConsumerState<DamagedPage>
                             title: titleCtrl.text.trim(),
                             description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
                             location: locationCtrl.text.trim(),
-                            reportedBy: authState.user?.id ?? '',
+                            reportedBy: authState.user?.uid ?? '',
                           );
                           if (ctx.mounted) Navigator.pop(ctx);
                         },

@@ -145,7 +145,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
                         description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
                         assignedTo: selectedAssignee,
                         recurring: selectedRecurring,
-                        createdBy: authState.user?.id ?? '',
+                        createdBy: authState.user?.uid ?? '',
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                     },

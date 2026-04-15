@@ -115,18 +115,18 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage>
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: nameCtrl,
-                    decoration: InputDecoration(labelText: 'Nome'),
-                    validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                    decoration: InputDecoration(labelText: t('common.name')),
+                    validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: valueCtrl,
-                    decoration: InputDecoration(labelText: 'Senha / Valor'),
-                    validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                    decoration: InputDecoration(labelText: t('passwords.value')),
+                    validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Categoria'),
+                    decoration: InputDecoration(labelText: t('passwords.category')),
                     items: [
                       DropdownMenuItem(value: 'wifi', child: Text(t('passwords.wifi'))),
                       DropdownMenuItem(value: 'streaming', child: Text(t('passwords.streaming'))),
@@ -145,7 +145,7 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage>
                           name: nameCtrl.text.trim(),
                           value: valueCtrl.text.trim(),
                           category: selectedCategory,
-                          createdBy: authState.user?.id ?? '',
+                          createdBy: authState.user?.uid ?? '',
                         );
                         if (ctx.mounted) Navigator.pop(ctx);
                       },

@@ -1,10 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class MemberModel {
   final String id;
   final String houseId;
   final String userId;
   final String role;
   final String entryDate;
-  // From profiles join
   final String name;
   final String? avatarUrl;
   final String color;
@@ -20,17 +21,18 @@ class MemberModel {
     required this.color,
   });
 
-  factory MemberModel.fromMap(Map<String, dynamic> map) {
-    final profile = map['profiles'] as Map<String, dynamic>?;
+  factory MemberModel.fromMap(String memberId, String houseId, Map<String, dynamic> map) {
     return MemberModel(
-      id: map['id'] as String,
-      houseId: map['house_id'] as String,
-      userId: map['user_id'] as String,
+      id: memberId,
+      houseId: houseId,
+      userId: map['userId'] as String? ?? memberId,
       role: map['role'] as String? ?? 'member',
-      entryDate: map['entry_date'] as String? ?? '',
-      name: profile?['name'] as String? ?? 'Membro',
-      avatarUrl: profile?['avatar_url'] as String?,
-      color: profile?['color'] as String? ?? '#2A9D90',
+      entryDate: map['entryDate'] is Timestamp
+          ? (map['entryDate'] as Timestamp).toDate().toIso8601String().substring(0, 10)
+          : (map['entryDate'] as String? ?? ''),
+      name: map['name'] as String? ?? 'Membro',
+      avatarUrl: map['avatarUrl'] as String?,
+      color: map['color'] as String? ?? '#2A9D90',
     );
   }
 

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class TaskModel {
   final String id;
   final String houseId;
@@ -23,18 +25,20 @@ class TaskModel {
     required this.createdAt,
   });
 
-  factory TaskModel.fromMap(Map<String, dynamic> map) {
+  factory TaskModel.fromMap(String id, Map<String, dynamic> map) {
     return TaskModel(
-      id: map['id'] as String,
-      houseId: map['house_id'] as String,
+      id: id,
+      houseId: map['houseId'] as String? ?? '',
       title: map['title'] as String,
       description: map['description'] as String?,
-      assignedTo: map['assigned_to'] as String?,
-      dueDate: map['due_date'] as String?,
+      assignedTo: map['assignedTo'] as String?,
+      dueDate: map['dueDate'] as String?,
       completed: map['completed'] as bool? ?? false,
       recurring: map['recurring'] as String?,
-      createdBy: map['created_by'] as String?,
-      createdAt: map['created_at'] as String? ?? '',
+      createdBy: map['createdBy'] as String?,
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
+          : (map['createdAt'] as String? ?? ''),
     );
   }
 }

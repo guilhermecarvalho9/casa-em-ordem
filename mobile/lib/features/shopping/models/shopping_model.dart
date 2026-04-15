@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class ShoppingItemModel {
   final String id;
   final String houseId;
@@ -21,17 +23,19 @@ class ShoppingItemModel {
     required this.createdAt,
   });
 
-  factory ShoppingItemModel.fromMap(Map<String, dynamic> map) {
+  factory ShoppingItemModel.fromMap(String id, Map<String, dynamic> map) {
     return ShoppingItemModel(
-      id: map['id'] as String,
-      houseId: map['house_id'] as String,
+      id: id,
+      houseId: map['houseId'] as String? ?? '',
       name: map['name'] as String,
       quantity: map['quantity'] as int? ?? 1,
       bought: map['bought'] as bool? ?? false,
-      addedBy: map['added_by'] as String?,
-      boughtBy: map['bought_by'] as String?,
+      addedBy: map['addedBy'] as String?,
+      boughtBy: map['boughtBy'] as String?,
       price: map['price'] != null ? (map['price'] as num).toDouble() : null,
-      createdAt: map['created_at'] as String? ?? '',
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
+          : (map['createdAt'] as String? ?? ''),
     );
   }
 }

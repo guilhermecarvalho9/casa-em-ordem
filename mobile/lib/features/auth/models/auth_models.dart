@@ -11,20 +11,22 @@ class UserProfile {
     required this.color,
   });
 
-  factory UserProfile.fromMap(Map<String, dynamic> map) {
+  factory UserProfile.fromMap(String id, Map<String, dynamic> map) {
     return UserProfile(
-      id: map['id'] as String,
+      id: id,
       name: map['name'] as String? ?? '',
-      avatarUrl: map['avatar_url'] as String?,
+      avatarUrl: map['avatarUrl'] as String?,
       color: map['color'] as String? ?? '#2A9D90',
     );
   }
 
-  UserProfile copyWith({
-    String? name,
-    String? avatarUrl,
-    String? color,
-  }) {
+  Map<String, dynamic> toMap() => {
+    'name': name,
+    'color': color,
+    if (avatarUrl != null) 'avatarUrl': avatarUrl,
+  };
+
+  UserProfile copyWith({String? name, String? avatarUrl, String? color}) {
     return UserProfile(
       id: id,
       name: name ?? this.name,
@@ -47,14 +49,20 @@ class House {
     required this.inviteCode,
   });
 
-  factory House.fromMap(Map<String, dynamic> map) {
+  factory House.fromMap(String id, Map<String, dynamic> map) {
     return House(
-      id: map['id'] as String,
+      id: id,
       name: map['name'] as String,
       address: map['address'] as String?,
-      inviteCode: map['invite_code'] as String,
+      inviteCode: map['inviteCode'] as String,
     );
   }
+
+  Map<String, dynamic> toMap() => {
+    'name': name,
+    if (address != null) 'address': address,
+    'inviteCode': inviteCode,
+  };
 }
 
 class HouseMember {
@@ -72,13 +80,13 @@ class HouseMember {
     required this.entryDate,
   });
 
-  factory HouseMember.fromMap(Map<String, dynamic> map) {
+  factory HouseMember.fromMap(String memberId, String houseId, Map<String, dynamic> map) {
     return HouseMember(
-      id: map['id'] as String,
-      houseId: map['house_id'] as String,
-      userId: map['user_id'] as String,
+      id: memberId,
+      houseId: houseId,
+      userId: map['userId'] as String? ?? memberId,
       role: map['role'] as String? ?? 'member',
-      entryDate: map['entry_date'] as String? ?? '',
+      entryDate: map['entryDate'] as String? ?? '',
     );
   }
 

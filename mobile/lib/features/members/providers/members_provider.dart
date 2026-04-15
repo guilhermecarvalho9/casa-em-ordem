@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/member_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -9,44 +9,33 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('members');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('house_members')
-          .select('*, profiles(name, avatar_url, color)')
-          .eq('house_id', _houseId)
-          .order('entry_date');
+      final snap = await _col.get();
       state = AsyncValue.data(
-        (data as List).map((m) => MemberModel.fromMap(m)).toList(),
+        snap.docs
+            .map((d) => MemberModel.fromMap(
+                d.id, _houseId, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
     }
   }
 
-  Future<String?> addMember(String userId, String role) async {
-    try {
-      await _supabase.from('house_members').insert({
-        'house_id': _houseId,
-        'user_id': userId,
-        'role': role,
-      });
-      await load();
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
   Future<String?> updateRole(String memberId, String role) async {
     try {
-      await _supabase
-          .from('house_members')
-          .update({'role': role})
-          .eq('id', memberId);
+      await _col.doc(memberId).update({'role': role});
       await load();
       return null;
     } catch (e) {
@@ -56,7 +45,9 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
 
   Future<String?> removeMember(String memberId) async {
     try {
-      await _supabase.from('house_members').delete().eq('id', memberId);
+      await _col.doc(memberId).delete();
+      // Also clear houseId in user doc
+      await _db.collection('users').doc(memberId).update({'houseId': ''});
       await load();
       return null;
     } catch (e) {
@@ -65,8 +56,8 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
   }
 }
 
-final membersProvider = StateNotifierProvider<MembersNotifier, AsyncValue<List<MemberModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final membersProvider =
+    StateNotifierProvider<MembersNotifier, AsyncValue<List<MemberModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return MembersNotifier(houseId);
 });

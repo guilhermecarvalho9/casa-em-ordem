@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bill_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -9,18 +9,23 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('bills');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('bills')
-          .select()
-          .eq('house_id', _houseId)
-          .order('due_date');
+      final snap = await _col.orderBy('dueDate').get();
       state = AsyncValue.data(
-        (data as List).map((b) => BillModel.fromMap(b)).toList(),
+        snap.docs
+            .map((d) => BillModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
@@ -36,15 +41,16 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
     required String createdBy,
   }) async {
     try {
-      await _supabase.from('bills').insert({
-        'house_id': _houseId,
+      await _col.add({
+        'houseId': _houseId,
         'title': title,
         'amount': amount,
-        'due_date': dueDate,
+        'dueDate': dueDate,
         'category': category,
-        'split_between': splitBetween,
+        'splitBetween': splitBetween,
         'paid': false,
-        'created_by': createdBy,
+        'createdBy': createdBy,
+        'createdAt': FieldValue.serverTimestamp(),
       });
       await load();
       return null;
@@ -55,17 +61,17 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
 
   Future<void> togglePaid(String billId, bool paid, {String? paidBy}) async {
     try {
-      await _supabase.from('bills').update({
+      await _col.doc(billId).update({
         'paid': paid,
-        'paid_by': paid ? paidBy : null,
-      }).eq('id', billId);
+        'paidBy': paid ? paidBy : null,
+      });
       await load();
     } catch (_) {}
   }
 
   Future<String?> deleteBill(String billId) async {
     try {
-      await _supabase.from('bills').delete().eq('id', billId);
+      await _col.doc(billId).delete();
       await load();
       return null;
     } catch (e) {
@@ -74,8 +80,8 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
   }
 }
 
-final billsProvider = StateNotifierProvider<BillsNotifier, AsyncValue<List<BillModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final billsProvider =
+    StateNotifierProvider<BillsNotifier, AsyncValue<List<BillModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return BillsNotifier(houseId);
 });

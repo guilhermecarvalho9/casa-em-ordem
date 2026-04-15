@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/rule_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -9,18 +9,24 @@ class RulesNotifier extends StateNotifier<AsyncValue<List<RuleModel>>> {
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('rules');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('rules')
-          .select()
-          .eq('house_id', _houseId)
-          .order('created_at');
+      final snap = await _col.orderBy('createdAt').get();
       state = AsyncValue.data(
-        (data as List).map((r) => RuleModel.fromMap(r)).toList(),
+        snap.docs
+            .map((d) =>
+                RuleModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
@@ -33,11 +39,12 @@ class RulesNotifier extends StateNotifier<AsyncValue<List<RuleModel>>> {
     required String createdBy,
   }) async {
     try {
-      await _supabase.from('rules').insert({
-        'house_id': _houseId,
+      await _col.add({
+        'houseId': _houseId,
         'title': title,
         'description': description,
-        'created_by': createdBy,
+        'createdBy': createdBy,
+        'createdAt': FieldValue.serverTimestamp(),
       });
       await load();
       return null;
@@ -48,7 +55,7 @@ class RulesNotifier extends StateNotifier<AsyncValue<List<RuleModel>>> {
 
   Future<String?> deleteRule(String ruleId) async {
     try {
-      await _supabase.from('rules').delete().eq('id', ruleId);
+      await _col.doc(ruleId).delete();
       await load();
       return null;
     } catch (e) {
@@ -57,8 +64,8 @@ class RulesNotifier extends StateNotifier<AsyncValue<List<RuleModel>>> {
   }
 }
 
-final rulesProvider = StateNotifierProvider<RulesNotifier, AsyncValue<List<RuleModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final rulesProvider =
+    StateNotifierProvider<RulesNotifier, AsyncValue<List<RuleModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return RulesNotifier(houseId);
 });

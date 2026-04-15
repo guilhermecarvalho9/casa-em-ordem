@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class DamagedItemModel {
   final String id;
   final String houseId;
@@ -21,17 +23,19 @@ class DamagedItemModel {
     required this.createdAt,
   });
 
-  factory DamagedItemModel.fromMap(Map<String, dynamic> map) {
+  factory DamagedItemModel.fromMap(String id, Map<String, dynamic> map) {
     return DamagedItemModel(
-      id: map['id'] as String,
-      houseId: map['house_id'] as String,
+      id: id,
+      houseId: map['houseId'] as String? ?? '',
       title: map['title'] as String,
       description: map['description'] as String?,
       location: map['location'] as String? ?? '',
-      photoUrl: map['photo_url'] as String?,
+      photoUrl: map['photoUrl'] as String?,
       status: map['status'] as String? ?? 'pending',
-      reportedBy: map['reported_by'] as String?,
-      createdAt: map['created_at'] as String? ?? '',
+      reportedBy: map['reportedBy'] as String?,
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
+          : (map['createdAt'] as String? ?? ''),
     );
   }
 

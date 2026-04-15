@@ -102,7 +102,7 @@ class _RulesPageState extends ConsumerState<RulesPage> {
                       await ref.read(rulesProvider.notifier).addRule(
                         title: titleCtrl.text.trim(),
                         description: descCtrl.text.trim(),
-                        createdBy: authState.user?.id ?? '',
+                        createdBy: authState.user?.uid ?? '',
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                     },

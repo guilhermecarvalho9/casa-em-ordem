@@ -119,7 +119,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 ),
                 const Spacer(),
                 if (dayEvents.isNotEmpty)
-                  Text('${dayEvents.length} evento(s)',
+                  Text('${dayEvents.length} ${t('events.eventCount')}',
                       style: GoogleFonts.inter(
                           fontSize: 12,
                           color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
@@ -199,7 +199,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Data selecionada: ${DateFormat('dd/MM/yyyy').format(_selectedDay)}',
+                  '${t('events.selectedDate')} ${DateFormat('dd/MM/yyyy').format(_selectedDay)}',
                   style: GoogleFonts.inter(fontSize: 12,
                       color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
                 ),
@@ -215,7 +215,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                         description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
                         eventDate: DateFormat('yyyy-MM-dd').format(_selectedDay),
                         location: locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim(),
-                        createdBy: authState.user?.id ?? '',
+                        createdBy: authState.user?.uid ?? '',
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                     },

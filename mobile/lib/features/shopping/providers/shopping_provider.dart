@@ -1,26 +1,34 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/shopping_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
-class ShoppingNotifier extends StateNotifier<AsyncValue<List<ShoppingItemModel>>> {
+class ShoppingNotifier
+    extends StateNotifier<AsyncValue<List<ShoppingItemModel>>> {
   ShoppingNotifier(this._houseId) : super(const AsyncValue.loading()) {
     load();
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('shopping');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('shopping_items')
-          .select()
-          .eq('house_id', _houseId)
-          .order('created_at', ascending: false);
+      final snap =
+          await _col.orderBy('createdAt', descending: true).get();
       state = AsyncValue.data(
-        (data as List).map((i) => ShoppingItemModel.fromMap(i)).toList(),
+        snap.docs
+            .map((d) =>
+                ShoppingItemModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
@@ -34,13 +42,14 @@ class ShoppingNotifier extends StateNotifier<AsyncValue<List<ShoppingItemModel>>
     required String addedBy,
   }) async {
     try {
-      await _supabase.from('shopping_items').insert({
-        'house_id': _houseId,
+      await _col.add({
+        'houseId': _houseId,
         'name': name,
         'quantity': quantity,
-        'price': price,
+        if (price != null) 'price': price,
         'bought': false,
-        'added_by': addedBy,
+        'addedBy': addedBy,
+        'createdAt': FieldValue.serverTimestamp(),
       });
       await load();
       return null;
@@ -49,19 +58,20 @@ class ShoppingNotifier extends StateNotifier<AsyncValue<List<ShoppingItemModel>>
     }
   }
 
-  Future<void> toggleBought(String itemId, bool bought, {String? boughtBy}) async {
+  Future<void> toggleBought(String itemId, bool bought,
+      {String? boughtBy}) async {
     try {
-      await _supabase.from('shopping_items').update({
+      await _col.doc(itemId).update({
         'bought': bought,
-        'bought_by': bought ? boughtBy : null,
-      }).eq('id', itemId);
+        'boughtBy': bought ? boughtBy : null,
+      });
       await load();
     } catch (_) {}
   }
 
   Future<String?> deleteItem(String itemId) async {
     try {
-      await _supabase.from('shopping_items').delete().eq('id', itemId);
+      await _col.doc(itemId).delete();
       await load();
       return null;
     } catch (e) {
@@ -70,8 +80,8 @@ class ShoppingNotifier extends StateNotifier<AsyncValue<List<ShoppingItemModel>>
   }
 }
 
-final shoppingProvider = StateNotifierProvider<ShoppingNotifier, AsyncValue<List<ShoppingItemModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final shoppingProvider = StateNotifierProvider<ShoppingNotifier,
+    AsyncValue<List<ShoppingItemModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return ShoppingNotifier(houseId);
 });

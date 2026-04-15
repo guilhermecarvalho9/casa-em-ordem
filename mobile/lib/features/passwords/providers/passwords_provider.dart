@@ -1,26 +1,33 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/password_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
-class PasswordsNotifier extends StateNotifier<AsyncValue<List<PasswordModel>>> {
+class PasswordsNotifier
+    extends StateNotifier<AsyncValue<List<PasswordModel>>> {
   PasswordsNotifier(this._houseId) : super(const AsyncValue.loading()) {
     load();
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('passwords');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('passwords')
-          .select()
-          .eq('house_id', _houseId)
-          .order('category');
+      final snap = await _col.orderBy('category').get();
       state = AsyncValue.data(
-        (data as List).map((p) => PasswordModel.fromMap(p)).toList(),
+        snap.docs
+            .map((d) =>
+                PasswordModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
@@ -34,12 +41,13 @@ class PasswordsNotifier extends StateNotifier<AsyncValue<List<PasswordModel>>> {
     required String createdBy,
   }) async {
     try {
-      await _supabase.from('passwords').insert({
-        'house_id': _houseId,
+      await _col.add({
+        'houseId': _houseId,
         'name': name,
         'value': value,
         'category': category,
-        'created_by': createdBy,
+        'createdBy': createdBy,
+        'createdAt': FieldValue.serverTimestamp(),
       });
       await load();
       return null;
@@ -50,7 +58,7 @@ class PasswordsNotifier extends StateNotifier<AsyncValue<List<PasswordModel>>> {
 
   Future<String?> deletePassword(String passwordId) async {
     try {
-      await _supabase.from('passwords').delete().eq('id', passwordId);
+      await _col.doc(passwordId).delete();
       await load();
       return null;
     } catch (e) {
@@ -59,8 +67,8 @@ class PasswordsNotifier extends StateNotifier<AsyncValue<List<PasswordModel>>> {
   }
 }
 
-final passwordsProvider = StateNotifierProvider<PasswordsNotifier, AsyncValue<List<PasswordModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final passwordsProvider = StateNotifierProvider<PasswordsNotifier,
+    AsyncValue<List<PasswordModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return PasswordsNotifier(houseId);
 });

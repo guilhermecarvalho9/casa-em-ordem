@@ -102,17 +102,15 @@ class _AddressPageState extends ConsumerState<AddressPage> {
                         onPressed: _editing
                             ? () async {
                                 setState(() => _loading = true);
-                                // Update address via Supabase directly
                                 try {
-                                  final houseId = authState.currentHouse?.id;
-                                  if (houseId != null) {
-                                    await ref.read(authProvider.notifier).updateProfile();
-                                    // The address update would need an updateHouse method
-                                    // For now just refresh
-                                    await ref.read(authProvider.notifier).refreshHouse();
-                                  }
+                                  await ref
+                                      .read(authProvider.notifier)
+                                      .updateHouseAddress(_addressCtrl.text.trim());
                                 } finally {
-                                  setState(() { _loading = false; _editing = false; });
+                                  setState(() {
+                                    _loading = false;
+                                    _editing = false;
+                                  });
                                 }
                               }
                             : () => setState(() => _editing = true),

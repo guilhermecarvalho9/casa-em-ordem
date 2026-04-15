@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -9,18 +9,24 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('events');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('events')
-          .select()
-          .eq('house_id', _houseId)
-          .order('event_date');
+      final snap = await _col.orderBy('eventDate').get();
       state = AsyncValue.data(
-        (data as List).map((e) => EventModel.fromMap(e)).toList(),
+        snap.docs
+            .map((d) =>
+                EventModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
@@ -36,14 +42,15 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     required String createdBy,
   }) async {
     try {
-      await _supabase.from('events').insert({
-        'house_id': _houseId,
+      await _col.add({
+        'houseId': _houseId,
         'title': title,
-        'description': description,
-        'event_date': eventDate,
-        'event_time': eventTime,
-        'location': location,
-        'created_by': createdBy,
+        if (description != null) 'description': description,
+        'eventDate': eventDate,
+        if (eventTime != null) 'eventTime': eventTime,
+        if (location != null) 'location': location,
+        'createdBy': createdBy,
+        'createdAt': FieldValue.serverTimestamp(),
       });
       await load();
       return null;
@@ -54,7 +61,7 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
 
   Future<String?> deleteEvent(String eventId) async {
     try {
-      await _supabase.from('events').delete().eq('id', eventId);
+      await _col.doc(eventId).delete();
       await load();
       return null;
     } catch (e) {
@@ -63,8 +70,8 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
   }
 }
 
-final eventsProvider = StateNotifierProvider<EventsNotifier, AsyncValue<List<EventModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final eventsProvider =
+    StateNotifierProvider<EventsNotifier, AsyncValue<List<EventModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return EventsNotifier(houseId);
 });

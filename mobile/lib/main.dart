@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'core/supabase/supabase_config.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app/providers/app_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -12,23 +13,24 @@ import 'features/app/pages/main_scaffold.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+  await initializeDateFormatting('pt_BR');
+  await initializeDateFormatting('en_US');
 
-  runApp(const ProviderScope(child: CasaEmOrdemApp()));
+  runApp(const ProviderScope(child: HomioApp()));
 }
 
-class CasaEmOrdemApp extends ConsumerWidget {
-  const CasaEmOrdemApp({super.key});
+class HomioApp extends ConsumerWidget {
+  const HomioApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appProvider);
 
     return MaterialApp(
-      title: 'Casa em Ordem',
+      title: 'Homio',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

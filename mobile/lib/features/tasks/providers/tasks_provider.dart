@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -9,18 +9,24 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   }
 
   final String _houseId;
-  final _supabase = Supabase.instance.client;
+  final _db = FirebaseFirestore.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('tasks');
 
   Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
     try {
       state = const AsyncValue.loading();
-      final data = await _supabase
-          .from('tasks')
-          .select()
-          .eq('house_id', _houseId)
-          .order('created_at', ascending: false);
+      final snap =
+          await _col.orderBy('createdAt', descending: true).get();
       state = AsyncValue.data(
-        (data as List).map((t) => TaskModel.fromMap(t)).toList(),
+        snap.docs
+            .map((d) => TaskModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList(),
       );
     } catch (e, s) {
       state = AsyncValue.error(e, s);
@@ -36,15 +42,16 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     required String createdBy,
   }) async {
     try {
-      await _supabase.from('tasks').insert({
-        'house_id': _houseId,
+      await _col.add({
+        'houseId': _houseId,
         'title': title,
-        'description': description,
-        'assigned_to': assignedTo,
-        'due_date': dueDate,
-        'recurring': recurring,
+        if (description != null) 'description': description,
+        if (assignedTo != null) 'assignedTo': assignedTo,
+        if (dueDate != null) 'dueDate': dueDate,
+        if (recurring != null) 'recurring': recurring,
         'completed': false,
-        'created_by': createdBy,
+        'createdBy': createdBy,
+        'createdAt': FieldValue.serverTimestamp(),
       });
       await load();
       return null;
@@ -55,17 +62,14 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
   Future<void> toggleComplete(String taskId, bool completed) async {
     try {
-      await _supabase
-          .from('tasks')
-          .update({'completed': completed})
-          .eq('id', taskId);
+      await _col.doc(taskId).update({'completed': completed});
       await load();
     } catch (_) {}
   }
 
   Future<String?> deleteTask(String taskId) async {
     try {
-      await _supabase.from('tasks').delete().eq('id', taskId);
+      await _col.doc(taskId).delete();
       await load();
       return null;
     } catch (e) {
@@ -74,8 +78,8 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   }
 }
 
-final tasksProvider = StateNotifierProvider<TasksNotifier, AsyncValue<List<TaskModel>>>((ref) {
-  final authState = ref.watch(authProvider);
-  final houseId = authState.currentHouse?.id ?? '';
+final tasksProvider =
+    StateNotifierProvider<TasksNotifier, AsyncValue<List<TaskModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
   return TasksNotifier(houseId);
 });

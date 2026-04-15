@@ -195,7 +195,7 @@ class _BillsPageState extends ConsumerState<BillsPage>
                             dueDate: selectedDate.toIso8601String().split('T').first,
                             category: selectedCategory,
                             splitBetween: selectedMembers,
-                            createdBy: authState.user?.id ?? '',
+                            createdBy: authState.user?.uid ?? '',
                           );
                           if (ctx.mounted) Navigator.pop(ctx);
                         },
@@ -299,7 +299,7 @@ class _BillList extends ConsumerWidget {
                   if (!bill.paid)
                     TextButton(
                       onPressed: () => ref.read(billsProvider.notifier)
-                          .togglePaid(bill.id, true, paidBy: authState.user?.id),
+                          .togglePaid(bill.id, true, paidBy: authState.user?.uid),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         minimumSize: Size.zero,

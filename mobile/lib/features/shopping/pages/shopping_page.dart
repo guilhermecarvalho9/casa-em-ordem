@@ -128,7 +128,7 @@ class _ShoppingPageState extends ConsumerState<ShoppingPage>
                       await ref.read(shoppingProvider.notifier).addItem(
                         name: nameCtrl.text.trim(),
                         quantity: int.tryParse(qtyCtrl.text) ?? 1,
-                        addedBy: authState.user?.id ?? '',
+                        addedBy: authState.user?.uid ?? '',
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                     },
@@ -177,7 +177,7 @@ class _ItemList extends ConsumerWidget {
             children: [
               GestureDetector(
                 onTap: () => ref.read(shoppingProvider.notifier)
-                    .toggleBought(item.id, !item.bought, boughtBy: authState.user?.id),
+                    .toggleBought(item.id, !item.bought, boughtBy: authState.user?.uid),
                 child: Container(
                   width: 22, height: 22,
                   decoration: BoxDecoration(
