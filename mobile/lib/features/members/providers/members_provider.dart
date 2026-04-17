@@ -43,6 +43,20 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
     }
   }
 
+  Future<String?> setExpiry(String memberId, String? dateIso) async {
+    try {
+      if (dateIso == null) {
+        await _col.doc(memberId).update({'expiresAt': FieldValue.delete()});
+      } else {
+        await _col.doc(memberId).update({'expiresAt': dateIso});
+      }
+      await load();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> removeMember(String memberId) async {
     try {
       await _col.doc(memberId).delete();

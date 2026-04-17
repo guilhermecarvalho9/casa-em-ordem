@@ -1,0 +1,139 @@
+import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import '../models/inventory_item_model.dart';
+import '../../auth/providers/auth_provider.dart';
+
+class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel>>> {
+  InventoryNotifier(this._houseId) : super(const AsyncValue.loading()) {
+    load();
+  }
+
+  final String _houseId;
+  final _db = FirebaseFirestore.instance;
+  final _storage = FirebaseStorage.instance;
+
+  CollectionReference get _col =>
+      _db.collection('houses').doc(_houseId).collection('inventory');
+
+  Future<void> load() async {
+    if (_houseId.isEmpty) {
+      state = const AsyncValue.data([]);
+      return;
+    }
+    try {
+      state = const AsyncValue.loading();
+      final snap = await _col.orderBy('createdAt', descending: true).get();
+      state = AsyncValue.data(
+        snap.docs
+            .map((d) => InventoryItemModel.fromMap(
+                d.id, _houseId, d.data() as Map<String, dynamic>))
+            .toList(),
+      );
+    } catch (e, s) {
+      state = AsyncValue.error(e, s);
+    }
+  }
+
+  Future<String?> addItem({
+    required String name,
+    required String category,
+    required double value,
+    required String ownerId,
+    required String ownerName,
+    required String createdBy,
+    String? description,
+    File? photo,
+  }) async {
+    try {
+      String? photoUrl;
+      if (photo != null) {
+        photoUrl = await _uploadPhoto(photo);
+      }
+
+      await _col.add({
+        'name': name,
+        'category': category,
+        'value': value,
+        'ownerId': ownerId,
+        'ownerName': ownerName,
+        if (description != null && description.isNotEmpty) 'description': description,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        'createdBy': createdBy,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await load();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> deleteItem(String itemId, String? photoUrl) async {
+    try {
+      await _col.doc(itemId).delete();
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        try {
+          await _storage.refFromURL(photoUrl).delete();
+        } catch (_) {}
+      }
+      await load();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateItem({
+    required String itemId,
+    required String name,
+    required String category,
+    required double value,
+    required String ownerId,
+    required String ownerName,
+    String? description,
+    File? newPhoto,
+    String? existingPhotoUrl,
+  }) async {
+    try {
+      String? photoUrl = existingPhotoUrl;
+      if (newPhoto != null) {
+        photoUrl = await _uploadPhoto(newPhoto);
+        if (existingPhotoUrl != null && existingPhotoUrl.isNotEmpty) {
+          try {
+            await _storage.refFromURL(existingPhotoUrl).delete();
+          } catch (_) {}
+        }
+      }
+
+      await _col.doc(itemId).update({
+        'name': name,
+        'category': category,
+        'value': value,
+        'ownerId': ownerId,
+        'ownerName': ownerName,
+        'description': description ?? '',
+        if (photoUrl != null) 'photoUrl': photoUrl else 'photoUrl': FieldValue.delete(),
+      });
+      await load();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String> _uploadPhoto(File photo) async {
+    final id = const Uuid().v4();
+    final ref = _storage.ref('houses/$_houseId/inventory/$id.jpg');
+    await ref.putFile(photo, SettableMetadata(contentType: 'image/jpeg'));
+    return await ref.getDownloadURL();
+  }
+}
+
+final inventoryProvider =
+    StateNotifierProvider<InventoryNotifier, AsyncValue<List<InventoryItemModel>>>((ref) {
+  final houseId = ref.watch(authProvider).currentHouse?.id ?? '';
+  return InventoryNotifier(houseId);
+});

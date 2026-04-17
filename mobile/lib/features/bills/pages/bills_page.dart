@@ -163,24 +163,67 @@ class _BillsPageState extends ConsumerState<BillsPage>
                     TextFormField(
                       controller: titleCtrl,
                       decoration: InputDecoration(labelText: t('common.title')),
-                      validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                      validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: amountCtrl,
                       decoration: InputDecoration(labelText: t('bills.amount'), prefixText: 'R\$ '),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                      validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      decoration: InputDecoration(labelText: 'Categoria'),
+                      decoration: InputDecoration(labelText: t('bills.category')),
                       items: ['rent', 'utilities', 'internet', 'other']
                           .map((c) => DropdownMenuItem(value: c, child: Text(t('bills.category.$c'))))
                           .toList(),
                       onChanged: (v) => setState2(() => selectedCategory = v ?? 'other'),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
+                    // Member selection
+                    if (members.isNotEmpty) ...[
+                      Text(t('bills.splitSelect'),
+                          style: GoogleFonts.inter(
+                              fontSize: 13, fontWeight: FontWeight.w500,
+                              color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          FilterChip(
+                            label: Text(t('bills.selectAll'),
+                                style: GoogleFonts.inter(fontSize: 12)),
+                            selected: selectedMembers.length == members.length,
+                            onSelected: (v) => setState2(() {
+                              selectedMembers = v
+                                  ? members.map((m) => m.userId).toList()
+                                  : [];
+                            }),
+                            selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                            checkmarkColor: AppColors.primary,
+                          ),
+                          ...members.map((m) => FilterChip(
+                            label: Text(m.name, style: GoogleFonts.inter(fontSize: 12)),
+                            selected: selectedMembers.contains(m.userId),
+                            onSelected: (v) => setState2(() {
+                              if (v) {
+                                selectedMembers = [...selectedMembers, m.userId];
+                              } else {
+                                selectedMembers = selectedMembers
+                                    .where((id) => id != m.userId)
+                                    .toList();
+                              }
+                            }),
+                            selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                            checkmarkColor: AppColors.primary,
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       height: 48,
@@ -279,7 +322,7 @@ class _BillList extends ConsumerWidget {
                       ),
                       if (bill.splitBetween.length > 1)
                         Text(
-                          'R\$ ${bill.perPerson.toStringAsFixed(2)} / pessoa',
+                          'R\$ ${bill.perPerson.toStringAsFixed(2)} ${t('bills.perPerson')}',
                           style: GoogleFonts.inter(
                               fontSize: 11,
                               color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),

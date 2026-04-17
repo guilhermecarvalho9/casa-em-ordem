@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
@@ -8,6 +9,7 @@ import 'features/app/providers/app_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/house_setup_page.dart';
+import 'features/auth/pages/expired_access_page.dart';
 import 'features/app/pages/main_scaffold.dart';
 
 void main() async {
@@ -16,6 +18,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  MobileAds.instance.initialize();
   await initializeDateFormatting('pt_BR');
   await initializeDateFormatting('en_US');
 
@@ -53,6 +56,10 @@ class _AppRoot extends ConsumerWidget {
 
     if (authState.user == null) {
       return const LoginPage();
+    }
+
+    if (authState.accessExpired) {
+      return const ExpiredAccessPage();
     }
 
     if (authState.currentHouse == null) {

@@ -9,6 +9,7 @@ class MemberModel {
   final String name;
   final String? avatarUrl;
   final String color;
+  final String? expiresAt;
 
   const MemberModel({
     required this.id,
@@ -19,6 +20,7 @@ class MemberModel {
     required this.name,
     this.avatarUrl,
     required this.color,
+    this.expiresAt,
   });
 
   factory MemberModel.fromMap(String memberId, String houseId, Map<String, dynamic> map) {
@@ -33,6 +35,7 @@ class MemberModel {
       name: map['name'] as String? ?? 'Membro',
       avatarUrl: map['avatarUrl'] as String?,
       color: map['color'] as String? ?? '#2A9D90',
+      expiresAt: map['expiresAt'] as String?,
     );
   }
 

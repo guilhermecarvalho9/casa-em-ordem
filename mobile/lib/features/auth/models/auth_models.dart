@@ -71,6 +71,7 @@ class HouseMember {
   final String userId;
   final String role;
   final String entryDate;
+  final String? expiresAt;
 
   const HouseMember({
     required this.id,
@@ -78,6 +79,7 @@ class HouseMember {
     required this.userId,
     required this.role,
     required this.entryDate,
+    this.expiresAt,
   });
 
   factory HouseMember.fromMap(String memberId, String houseId, Map<String, dynamic> map) {
@@ -87,8 +89,20 @@ class HouseMember {
       userId: map['userId'] as String? ?? memberId,
       role: map['role'] as String? ?? 'member',
       entryDate: map['entryDate'] as String? ?? '',
+      expiresAt: map['expiresAt'] as String?,
     );
   }
 
   bool get isAdmin => role == 'admin';
+
+  bool get isExpired {
+    if (expiresAt == null || expiresAt!.isEmpty) return false;
+    try {
+      final expiry = DateTime.parse(expiresAt!);
+      final endOfDay = DateTime(expiry.year, expiry.month, expiry.day, 23, 59, 59);
+      return DateTime.now().isAfter(endOfDay);
+    } catch (_) {
+      return false;
+    }
+  }
 }

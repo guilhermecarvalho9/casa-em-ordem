@@ -18,6 +18,9 @@ import '../../profile/pages/profile_page.dart';
 import '../../address/pages/address_page.dart';
 import '../../settings/pages/settings_page.dart';
 import '../../qrcode/pages/qrcode_page.dart';
+import '../../inventory/pages/inventory_page.dart';
+import '../../nf/pages/nf_page.dart';
+import '../../../shared/widgets/ad_banner.dart';
 
 final currentPageProvider = StateProvider<String>((ref) => 'dashboard');
 
@@ -65,6 +68,7 @@ class MainScaffold extends ConsumerWidget {
       ),
       drawer: _AppDrawer(currentPage: currentPage),
       body: _buildPage(currentPage),
+      bottomNavigationBar: const AdBannerWidget(),
     );
   }
 
@@ -82,6 +86,8 @@ class MainScaffold extends ConsumerWidget {
       case 'passwords': return const PasswordsPage();
       case 'damaged': return const DamagedPage();
       case 'qrcode': return const QRCodePage();
+      case 'inventory': return const InventoryPage();
+      case 'nf': return const NfPage();
       case 'settings': return const SettingsPage();
       default: return const DashboardPage();
     }
@@ -144,7 +150,9 @@ class _AppDrawer extends ConsumerWidget {
       _NavItem('shopping', Icons.shopping_cart_rounded, t('nav.shopping')),
       _NavItem('passwords', Icons.lock_rounded, t('nav.passwords')),
       _NavItem('damaged', Icons.warning_rounded, t('nav.damaged')),
+      _NavItem('inventory', Icons.inventory_2_rounded, t('nav.inventory')),
       _NavItem('qrcode', Icons.qr_code_rounded, t('nav.qrcode')),
+      _NavItem('nf', Icons.receipt_long_rounded, t('nav.nf')),
     ];
 
     return Drawer(
@@ -165,18 +173,11 @@ class _AppDrawer extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Container(
+                Image.asset(
+                  'assets/logo-homio-fundo-transparente.png',
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.primary, Color(0xFF3BB5A8)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.home_rounded, color: Colors.white, size: 20),
+                  fit: BoxFit.contain,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

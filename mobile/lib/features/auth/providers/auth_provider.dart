@@ -10,6 +10,7 @@ class AuthState {
   final House? currentHouse;
   final HouseMember? houseMembership;
   final bool loading;
+  final bool accessExpired;
 
   const AuthState({
     this.user,
@@ -17,6 +18,7 @@ class AuthState {
     this.currentHouse,
     this.houseMembership,
     this.loading = true,
+    this.accessExpired = false,
   });
 
   AuthState copyWith({
@@ -25,6 +27,7 @@ class AuthState {
     House? currentHouse,
     HouseMember? houseMembership,
     bool? loading,
+    bool? accessExpired,
     bool clearUser = false,
   }) {
     return AuthState(
@@ -34,6 +37,7 @@ class AuthState {
       houseMembership:
           clearUser ? null : (houseMembership ?? this.houseMembership),
       loading: loading ?? this.loading,
+      accessExpired: clearUser ? false : (accessExpired ?? this.accessExpired),
     );
   }
 }
@@ -82,42 +86,48 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final houseId = userDoc.data()?['houseId'] as String?;
 
       if (houseId == null || houseId.isEmpty) {
-        state = AuthState(
-          user: state.user,
-          profile: state.profile,
-          loading: false,
-        );
+        state = AuthState(user: state.user, profile: state.profile, loading: false);
         return;
       }
 
       final houseDoc = await _db.collection('houses').doc(houseId).get();
       if (!houseDoc.exists) {
-        state = AuthState(
-          user: state.user,
-          profile: state.profile,
-          loading: false,
-        );
+        state = AuthState(user: state.user, profile: state.profile, loading: false);
         return;
       }
 
-      final memberDoc =
-          await _db.collection('houses').doc(houseId).collection('members').doc(uid).get();
+      final memberDoc = await _db
+          .collection('houses')
+          .doc(houseId)
+          .collection('members')
+          .doc(uid)
+          .get();
 
       if (!memberDoc.exists) {
+        state = AuthState(user: state.user, profile: state.profile, loading: false);
+        return;
+      }
+
+      final membership = HouseMember.fromMap(uid, houseId, memberDoc.data()!);
+
+      if (membership.isExpired) {
         state = AuthState(
           user: state.user,
           profile: state.profile,
           loading: false,
+          accessExpired: true,
         );
         return;
       }
 
       state = state.copyWith(
         currentHouse: House.fromMap(houseId, houseDoc.data()!),
-        houseMembership:
-            HouseMember.fromMap(uid, houseId, memberDoc.data()!),
+        houseMembership: membership,
+        loading: false,
       );
-    } catch (_) {}
+    } catch (_) {
+      state = state.copyWith(loading: false);
+    }
   }
 
   Future<String?> signIn(String email, String password) async {
@@ -200,6 +210,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       await batch.commit();
       await _fetchHouseMembership(uid);
+      // Retry once if Firestore propagation was slow
+      if (state.currentHouse == null) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        await _fetchHouseMembership(uid);
+      }
       return null;
     } catch (e) {
       return e.toString();
