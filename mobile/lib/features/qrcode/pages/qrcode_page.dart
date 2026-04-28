@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../app/providers/app_provider.dart';
+import '../../auth/models/auth_models.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../passwords/providers/passwords_provider.dart';
 import '../../rules/providers/rules_provider.dart';
@@ -111,16 +112,15 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
                         },
                       ),
 
-                // House invite QR code
+                // House public page QR code
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: authState.currentHouse == null
                       ? const SizedBox()
-                      : _QRCard(
-                          title: authState.currentHouse!.name,
-                          subtitle: t('qrcode.inviteCode'),
-                          qrData: authState.currentHouse!.inviteCode,
+                      : _PublicHouseQRSection(
+                          house: authState.currentHouse!,
                           isDark: isDark,
+                          t: t,
                         ),
                 ),
 
@@ -226,6 +226,106 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
     final text = buf.toString().trim();
     if (text.length > 4000) return text.substring(0, 4000);
     return text;
+  }
+}
+
+class _PublicHouseQRSection extends StatelessWidget {
+  final House house;
+  final bool isDark;
+  final String Function(String) t;
+
+  const _PublicHouseQRSection({
+    required this.house,
+    required this.isDark,
+    required this.t,
+  });
+
+  static const _baseUrl = 'https://projeto-homio.web.app/casa/?code=';
+
+  @override
+  Widget build(BuildContext context) {
+    final url = '$_baseUrl${house.inviteCode}';
+
+    return Column(
+      children: [
+        _QRCard(
+          title: house.name,
+          subtitle: t('qrcode.publicPage'),
+          qrData: url,
+          isDark: isDark,
+          footer: Column(
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                t('qrcode.publicHint'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // URL display + copy button
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  url,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: url));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(t('qrcode.linkCopied')),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 2),
+                  ));
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.copy_rounded, size: 13, color: Colors.white),
+                      const SizedBox(width: 4),
+                      Text(
+                        t('qrcode.copyLink'),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

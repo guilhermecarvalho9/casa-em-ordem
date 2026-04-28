@@ -9,6 +9,7 @@ class ShoppingItemModel {
   final String? addedBy;
   final String? boughtBy;
   final double? price;
+  final List<String> splitBetween;
   final String createdAt;
 
   const ShoppingItemModel({
@@ -20,6 +21,7 @@ class ShoppingItemModel {
     this.addedBy,
     this.boughtBy,
     this.price,
+    this.splitBetween = const [],
     required this.createdAt,
   });
 
@@ -33,9 +35,18 @@ class ShoppingItemModel {
       addedBy: map['addedBy'] as String?,
       boughtBy: map['boughtBy'] as String?,
       price: map['price'] != null ? (map['price'] as num).toDouble() : null,
+      splitBetween: (map['splitBetween'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
           : (map['createdAt'] as String? ?? ''),
     );
+  }
+
+  double get pricePerPerson {
+    if (price == null || splitBetween.isEmpty) return price ?? 0;
+    return price! / splitBetween.length;
   }
 }

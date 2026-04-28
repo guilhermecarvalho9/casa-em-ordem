@@ -39,6 +39,7 @@ class ShoppingNotifier
     required String name,
     int quantity = 1,
     double? price,
+    List<String> splitBetween = const [],
     required String addedBy,
   }) async {
     try {
@@ -47,6 +48,7 @@ class ShoppingNotifier
         'name': name,
         'quantity': quantity,
         if (price != null) 'price': price,
+        if (splitBetween.isNotEmpty) 'splitBetween': splitBetween,
         'bought': false,
         'addedBy': addedBy,
         'createdAt': FieldValue.serverTimestamp(),

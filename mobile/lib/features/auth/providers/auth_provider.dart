@@ -186,12 +186,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       final inviteCode = const Uuid().v4().substring(0, 8).toUpperCase();
       final houseRef = _db.collection('houses').doc();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final normalizedAddress = (address != null && address.isNotEmpty) ? address : null;
 
       final batch = _db.batch();
 
       batch.set(houseRef, {
         'name': name,
-        if (address != null && address.isNotEmpty) 'address': address,
+        if (normalizedAddress != null) 'address': normalizedAddress,
         'inviteCode': inviteCode,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -199,7 +201,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       batch.set(houseRef.collection('members').doc(uid), {
         'userId': uid,
         'role': 'admin',
-        'entryDate': DateTime.now().toIso8601String().substring(0, 10),
+        'entryDate': today,
         'name': state.profile?.name ?? '',
         'color': state.profile?.color ?? '#2A9D90',
       });
@@ -209,12 +211,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
 
       await batch.commit();
-      await _fetchHouseMembership(uid);
-      // Retry once if Firestore propagation was slow
-      if (state.currentHouse == null) {
-        await Future.delayed(const Duration(milliseconds: 800));
-        await _fetchHouseMembership(uid);
-      }
+
+      // Update state directly from data we just wrote — avoids Firestore cache
+      // timing issues on Android where a subsequent get() may return stale data.
+      state = state.copyWith(
+        currentHouse: House(
+          id: houseRef.id,
+          name: name,
+          address: normalizedAddress,
+          inviteCode: inviteCode,
+        ),
+        houseMembership: HouseMember(
+          id: uid,
+          houseId: houseRef.id,
+          userId: uid,
+          role: 'admin',
+          entryDate: today,
+        ),
+      );
+
       return null;
     } catch (e) {
       return e.toString();
@@ -236,13 +251,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       final houseDoc = query.docs.first;
       final houseId = houseDoc.id;
+      final today = DateTime.now().toIso8601String().substring(0, 10);
 
       final batch = _db.batch();
 
       batch.set(houseDoc.reference.collection('members').doc(uid), {
         'userId': uid,
         'role': 'member',
-        'entryDate': DateTime.now().toIso8601String().substring(0, 10),
+        'entryDate': today,
         'name': state.profile?.name ?? '',
         'color': state.profile?.color ?? '#2A9D90',
       });
@@ -252,7 +268,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
 
       await batch.commit();
-      await _fetchHouseMembership(uid);
+
+      // Update state directly — avoids Android Firestore cache timing issues.
+      state = state.copyWith(
+        currentHouse: House.fromMap(houseId, houseDoc.data()),
+        houseMembership: HouseMember(
+          id: uid,
+          houseId: houseId,
+          userId: uid,
+          role: 'member',
+          entryDate: today,
+        ),
+      );
+
       return null;
     } catch (e) {
       return e.toString();

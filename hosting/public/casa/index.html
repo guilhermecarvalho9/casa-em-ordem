@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homio – Casa</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #f4f6f8;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #2A9D90, #3BB5A8);
+      padding: 32px 20px 48px;
+      text-align: center;
+      color: white;
+    }
+
+    .logo {
+      width: 52px;
+      height: 52px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin: -24px 16px 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    .info-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .info-row:last-child { border-bottom: none; }
+
+    .info-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #f0faf9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 15px;
+    }
+
+    .info-label { font-size: 11px; color: #888; }
+    .info-value { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+
+    .rule-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .rule-item:last-child { border-bottom: none; }
+
+    .rule-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2A9D90, #3BB5A8);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .rule-title { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+    .rule-desc { font-size: 13px; color: #555; margin-top: 2px; line-height: 1.4; }
+
+    .join-card {
+      background: linear-gradient(135deg, #2A9D90, #3BB5A8);
+      border-radius: 16px;
+      padding: 20px;
+      margin: 0 16px 16px;
+      color: white;
+      text-align: center;
+    }
+
+    .join-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .join-card p { font-size: 13px; opacity: 0.85; margin-bottom: 14px; }
+
+    .invite-code {
+      background: rgba(255,255,255,0.2);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      display: inline-block;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 20px;
+      color: #aaa;
+      font-size: 12px;
+    }
+
+    .footer a { color: #2A9D90; text-decoration: none; }
+
+    /* States */
+    #loading, #error {
+      text-align: center;
+      padding: 60px 20px;
+      color: #888;
+      font-size: 15px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #2A9D90;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #error { color: #e55; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Carregando informações da casa…</p>
+</div>
+
+<div id="error" style="display:none"></div>
+
+<div id="content" style="display:none">
+  <div class="header">
+    <div class="logo">🏠</div>
+    <h1 id="house-name"></h1>
+    <p id="house-subtitle">Homio – Gestão de Casa</p>
+  </div>
+
+  <div id="house-info-card" class="card" style="display:none">
+    <div class="section-title">Informações</div>
+    <div id="house-info-rows"></div>
+  </div>
+
+  <div id="rules-card" class="card" style="display:none">
+    <div class="section-title">Regras da Casa</div>
+    <div id="rules-list"></div>
+  </div>
+
+  <div class="join-card">
+    <h3>Quer entrar nessa casa?</h3>
+    <p>Baixe o app Homio e use o código de convite:</p>
+    <div class="invite-code" id="invite-code-display"></div>
+  </div>
+
+  <div class="footer">
+    Powered by <a href="#">Homio</a> – Gestão Inteligente de Casa
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
+  import { getFirestore, collection, query, where, limit, getDocs, orderBy } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDh7Q6rnKbw11eTUn27y234eu-iX6QwwLQ",
+    authDomain: "projeto-homio.firebaseapp.com",
+    projectId: "projeto-homio",
+    storageBucket: "projeto-homio.firebasestorage.app",
+    messagingSenderId: "875447160502",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  function show(id) { document.getElementById(id).style.display = ''; }
+  function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+  async function load() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (!code) {
+      hide('loading');
+      show('error');
+      document.getElementById('error').textContent = 'Código de convite não informado.';
+      return;
+    }
+
+    try {
+      const housesRef = collection(db, 'houses');
+      const q = query(housesRef, where('inviteCode', '==', code.toUpperCase()), limit(1));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        hide('loading');
+        show('error');
+        document.getElementById('error').textContent = 'Casa não encontrada. Verifique o código.';
+        return;
+      }
+
+      const houseDoc = snap.docs[0];
+      const house = houseDoc.data();
+      const houseId = houseDoc.id;
+
+      document.getElementById('house-name').textContent = house.name ?? 'Casa';
+      document.getElementById('invite-code-display').textContent = code.toUpperCase();
+
+      // Info rows
+      const infoRows = [];
+      if (house.address) {
+        infoRows.push({ icon: '📍', label: 'Endereço', value: house.address });
+      }
+
+      if (infoRows.length > 0) {
+        const rowsEl = document.getElementById('house-info-rows');
+        rowsEl.innerHTML = infoRows.map(r => `
+          <div class="info-row">
+            <div class="info-icon">${r.icon}</div>
+            <div>
+              <div class="info-label">${r.label}</div>
+              <div class="info-value">${r.value}</div>
+            </div>
+          </div>
+        `).join('');
+        show('house-info-card');
+      }
+
+      // Load rules
+      try {
+        const rulesRef = collection(db, 'houses', houseId, 'rules');
+        const rulesSnap = await getDocs(rulesRef);
+        const rules = rulesSnap.docs.map(d => d.data());
+
+        if (rules.length > 0) {
+          const listEl = document.getElementById('rules-list');
+          listEl.innerHTML = rules.map((r, i) => `
+            <div class="rule-item">
+              <div class="rule-number">${i + 1}</div>
+              <div>
+                <div class="rule-title">${r.title ?? ''}</div>
+                ${r.description ? `<div class="rule-desc">${r.description}</div>` : ''}
+              </div>
+            </div>
+          `).join('');
+          show('rules-card');
+        }
+      } catch (_) {}
+
+      hide('loading');
+      show('content');
+    } catch (e) {
+      hide('loading');
+      show('error');
+      document.getElementById('error').textContent = 'Erro ao carregar dados. Tente novamente.';
+      console.error(e);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
