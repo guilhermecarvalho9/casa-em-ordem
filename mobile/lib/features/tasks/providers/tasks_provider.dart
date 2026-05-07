@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_model.dart';
@@ -5,32 +6,37 @@ import '../../auth/providers/auth_provider.dart';
 
 class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   TasksNotifier(this._houseId) : super(const AsyncValue.loading()) {
-    load();
+    _subscribe();
   }
 
   final String _houseId;
   final _db = FirebaseFirestore.instance;
+  StreamSubscription<QuerySnapshot>? _sub;
 
   CollectionReference get _col =>
       _db.collection('houses').doc(_houseId).collection('tasks');
 
-  Future<void> load() async {
+  void _subscribe() {
     if (_houseId.isEmpty) {
       state = const AsyncValue.data([]);
       return;
     }
-    try {
-      state = const AsyncValue.loading();
-      final snap =
-          await _col.orderBy('createdAt', descending: true).get();
-      state = AsyncValue.data(
-        snap.docs
-            .map((d) => TaskModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (e, s) {
-      state = AsyncValue.error(e, s);
-    }
+    _sub = _col.orderBy('createdAt', descending: true).snapshots().listen(
+      (snap) {
+        state = AsyncValue.data(
+          snap.docs
+              .map((d) => TaskModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList(),
+        );
+      },
+      onError: (e, s) => state = AsyncValue.error(e, s),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<String?> addTask({
@@ -53,7 +59,6 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         'createdBy': createdBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -63,14 +68,12 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   Future<void> toggleComplete(String taskId, bool completed) async {
     try {
       await _col.doc(taskId).update({'completed': completed});
-      await load();
     } catch (_) {}
   }
 
   Future<String?> deleteTask(String taskId) async {
     try {
       await _col.doc(taskId).delete();
-      await load();
       return null;
     } catch (e) {
       return e.toString();

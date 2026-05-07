@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/damaged_model.dart';
@@ -6,33 +7,38 @@ import '../../auth/providers/auth_provider.dart';
 class DamagedNotifier
     extends StateNotifier<AsyncValue<List<DamagedItemModel>>> {
   DamagedNotifier(this._houseId) : super(const AsyncValue.loading()) {
-    load();
+    _subscribe();
   }
 
   final String _houseId;
   final _db = FirebaseFirestore.instance;
+  StreamSubscription<QuerySnapshot>? _sub;
 
   CollectionReference get _col =>
       _db.collection('houses').doc(_houseId).collection('damaged');
 
-  Future<void> load() async {
+  void _subscribe() {
     if (_houseId.isEmpty) {
       state = const AsyncValue.data([]);
       return;
     }
-    try {
-      state = const AsyncValue.loading();
-      final snap =
-          await _col.orderBy('createdAt', descending: true).get();
-      state = AsyncValue.data(
-        snap.docs
-            .map((d) =>
-                DamagedItemModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (e, s) {
-      state = AsyncValue.error(e, s);
-    }
+    _sub = _col.orderBy('createdAt', descending: true).snapshots().listen(
+      (snap) {
+        state = AsyncValue.data(
+          snap.docs
+              .map((d) =>
+                  DamagedItemModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList(),
+        );
+      },
+      onError: (e, s) => state = AsyncValue.error(e, s),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<String?> addItem({
@@ -53,7 +59,6 @@ class DamagedNotifier
         'reportedBy': reportedBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -63,14 +68,12 @@ class DamagedNotifier
   Future<void> markFixed(String itemId) async {
     try {
       await _col.doc(itemId).update({'status': 'fixed'});
-      await load();
     } catch (_) {}
   }
 
   Future<String?> deleteItem(String itemId) async {
     try {
       await _col.doc(itemId).delete();
-      await load();
       return null;
     } catch (e) {
       return e.toString();

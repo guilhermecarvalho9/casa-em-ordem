@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bill_model.dart';
@@ -5,31 +6,37 @@ import '../../auth/providers/auth_provider.dart';
 
 class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
   BillsNotifier(this._houseId) : super(const AsyncValue.loading()) {
-    load();
+    _subscribe();
   }
 
   final String _houseId;
   final _db = FirebaseFirestore.instance;
+  StreamSubscription<QuerySnapshot>? _sub;
 
   CollectionReference get _col =>
       _db.collection('houses').doc(_houseId).collection('bills');
 
-  Future<void> load() async {
+  void _subscribe() {
     if (_houseId.isEmpty) {
       state = const AsyncValue.data([]);
       return;
     }
-    try {
-      state = const AsyncValue.loading();
-      final snap = await _col.orderBy('dueDate').get();
-      state = AsyncValue.data(
-        snap.docs
-            .map((d) => BillModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (e, s) {
-      state = AsyncValue.error(e, s);
-    }
+    _sub = _col.orderBy('dueDate').snapshots().listen(
+      (snap) {
+        state = AsyncValue.data(
+          snap.docs
+              .map((d) => BillModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList(),
+        );
+      },
+      onError: (e, s) => state = AsyncValue.error(e, s),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<String?> addBill({
@@ -52,7 +59,6 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
         'createdBy': createdBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -65,14 +71,12 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
         'paid': paid,
         'paidBy': paid ? paidBy : null,
       });
-      await load();
     } catch (_) {}
   }
 
   Future<String?> deleteBill(String billId) async {
     try {
       await _col.doc(billId).delete();
-      await load();
       return null;
     } catch (e) {
       return e.toString();

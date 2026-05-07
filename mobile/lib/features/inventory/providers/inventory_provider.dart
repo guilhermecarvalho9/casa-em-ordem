@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,33 +9,39 @@ import '../../auth/providers/auth_provider.dart';
 
 class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel>>> {
   InventoryNotifier(this._houseId) : super(const AsyncValue.loading()) {
-    load();
+    _subscribe();
   }
 
   final String _houseId;
   final _db = FirebaseFirestore.instance;
   final _storage = FirebaseStorage.instance;
+  StreamSubscription<QuerySnapshot>? _sub;
 
   CollectionReference get _col =>
       _db.collection('houses').doc(_houseId).collection('inventory');
 
-  Future<void> load() async {
+  void _subscribe() {
     if (_houseId.isEmpty) {
       state = const AsyncValue.data([]);
       return;
     }
-    try {
-      state = const AsyncValue.loading();
-      final snap = await _col.orderBy('createdAt', descending: true).get();
-      state = AsyncValue.data(
-        snap.docs
-            .map((d) => InventoryItemModel.fromMap(
-                d.id, _houseId, d.data() as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (e, s) {
-      state = AsyncValue.error(e, s);
-    }
+    _sub = _col.orderBy('createdAt', descending: true).snapshots().listen(
+      (snap) {
+        state = AsyncValue.data(
+          snap.docs
+              .map((d) => InventoryItemModel.fromMap(
+                  d.id, _houseId, d.data() as Map<String, dynamic>))
+              .toList(),
+        );
+      },
+      onError: (e, s) => state = AsyncValue.error(e, s),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<String?> addItem({
@@ -64,7 +71,6 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
         'createdBy': createdBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -79,7 +85,6 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
           await _storage.refFromURL(photoUrl).delete();
         } catch (_) {}
       }
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -117,7 +122,6 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
         'description': description ?? '',
         if (photoUrl != null) 'photoUrl': photoUrl else 'photoUrl': FieldValue.delete(),
       });
-      await load();
       return null;
     } catch (e) {
       return e.toString();

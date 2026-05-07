@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/member_model.dart';
@@ -5,38 +6,43 @@ import '../../auth/providers/auth_provider.dart';
 
 class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
   MembersNotifier(this._houseId) : super(const AsyncValue.loading()) {
-    load();
+    _subscribe();
   }
 
   final String _houseId;
   final _db = FirebaseFirestore.instance;
+  StreamSubscription<QuerySnapshot>? _sub;
 
   CollectionReference get _col =>
       _db.collection('houses').doc(_houseId).collection('members');
 
-  Future<void> load() async {
+  void _subscribe() {
     if (_houseId.isEmpty) {
       state = const AsyncValue.data([]);
       return;
     }
-    try {
-      state = const AsyncValue.loading();
-      final snap = await _col.get();
-      state = AsyncValue.data(
-        snap.docs
-            .map((d) => MemberModel.fromMap(
-                d.id, _houseId, d.data() as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (e, s) {
-      state = AsyncValue.error(e, s);
-    }
+    _sub = _col.snapshots().listen(
+      (snap) {
+        state = AsyncValue.data(
+          snap.docs
+              .map((d) => MemberModel.fromMap(
+                  d.id, _houseId, d.data() as Map<String, dynamic>))
+              .toList(),
+        );
+      },
+      onError: (e, s) => state = AsyncValue.error(e, s),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<String?> updateRole(String memberId, String role) async {
     try {
       await _col.doc(memberId).update({'role': role});
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -50,7 +56,6 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
       } else {
         await _col.doc(memberId).update({'expiresAt': dateIso});
       }
-      await load();
       return null;
     } catch (e) {
       return e.toString();
@@ -60,9 +65,7 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
   Future<String?> removeMember(String memberId) async {
     try {
       await _col.doc(memberId).delete();
-      // Also clear houseId in user doc
       await _db.collection('users').doc(memberId).update({'houseId': ''});
-      await load();
       return null;
     } catch (e) {
       return e.toString();
