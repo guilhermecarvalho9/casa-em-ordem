@@ -128,6 +128,13 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
     }
   }
 
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
+  }
+
   Future<String> _uploadPhoto(File photo) async {
     final id = const Uuid().v4();
     final ref = _storage.ref('houses/$_houseId/inventory/$id.jpg');

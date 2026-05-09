@@ -71,6 +71,24 @@ class DamagedNotifier
     } catch (_) {}
   }
 
+  Future<String?> updateItem({
+    required String itemId,
+    required String title,
+    String? description,
+    required String location,
+  }) async {
+    try {
+      await _col.doc(itemId).update({
+        'title': title,
+        'description': description ?? FieldValue.delete(),
+        'location': location,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> deleteItem(String itemId) async {
     try {
       await _col.doc(itemId).delete();
@@ -78,6 +96,13 @@ class DamagedNotifier
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 

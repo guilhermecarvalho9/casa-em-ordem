@@ -75,6 +75,26 @@ class ShoppingNotifier
     } catch (_) {}
   }
 
+  Future<String?> updateItem({
+    required String itemId,
+    required String name,
+    required int quantity,
+    double? price,
+    List<String> splitBetween = const [],
+  }) async {
+    try {
+      await _col.doc(itemId).update({
+        'name': name,
+        'quantity': quantity,
+        if (price != null) 'price': price else 'price': FieldValue.delete(),
+        'splitBetween': splitBetween,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> deleteItem(String itemId) async {
     try {
       await _col.doc(itemId).delete();
@@ -82,6 +102,13 @@ class ShoppingNotifier
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 

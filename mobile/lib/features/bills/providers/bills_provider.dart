@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bill_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/services/notification_service.dart';
 
 class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
   BillsNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -48,7 +49,7 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
     required String createdBy,
   }) async {
     try {
-      await _col.add({
+      final doc = await _col.add({
         'houseId': _houseId,
         'title': title,
         'amount': amount,
@@ -59,28 +60,77 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
         'createdBy': createdBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      NotificationService.instance.scheduleBillReminders(
+        billId: doc.id,
+        billTitle: title,
+        dueDate: dueDate,
+      );
       return null;
     } catch (e) {
       return e.toString();
     }
   }
 
-  Future<void> togglePaid(String billId, bool paid, {String? paidBy}) async {
+  Future<void> togglePaid(String billId, bool paid, {String? paidBy, BillModel? bill}) async {
     try {
       await _col.doc(billId).update({
         'paid': paid,
         'paidBy': paid ? paidBy : null,
       });
+      if (paid) {
+        NotificationService.instance.cancelBillReminders(billId);
+      } else if (bill != null) {
+        NotificationService.instance.scheduleBillReminders(
+          billId: bill.id,
+          billTitle: bill.title,
+          dueDate: bill.dueDate,
+        );
+      }
     } catch (_) {}
+  }
+
+  Future<String?> updateBill({
+    required String billId,
+    required String title,
+    required double amount,
+    required String dueDate,
+    required String category,
+    required List<String> splitBetween,
+  }) async {
+    try {
+      await _col.doc(billId).update({
+        'title': title,
+        'amount': amount,
+        'dueDate': dueDate,
+        'category': category,
+        'splitBetween': splitBetween,
+      });
+      NotificationService.instance.scheduleBillReminders(
+        billId: billId,
+        billTitle: title,
+        dueDate: dueDate,
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
   }
 
   Future<String?> deleteBill(String billId) async {
     try {
       await _col.doc(billId).delete();
+      NotificationService.instance.cancelBillReminders(billId);
       return null;
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 

@@ -62,6 +62,20 @@ class PasswordsNotifier
     }
   }
 
+  Future<String?> updatePassword({
+    required String passwordId,
+    required String name,
+    required String value,
+    required String category,
+  }) async {
+    try {
+      await _col.doc(passwordId).update({'name': name, 'value': value, 'category': category});
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> deletePassword(String passwordId) async {
     try {
       await _col.doc(passwordId).delete();
@@ -69,6 +83,13 @@ class PasswordsNotifier
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 

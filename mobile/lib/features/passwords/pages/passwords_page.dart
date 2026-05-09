@@ -67,25 +67,58 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _PasswordList(passwords: wifi, isDark: isDark, t: t),
-                _PasswordList(passwords: streaming, isDark: isDark, t: t),
-                _PasswordList(passwords: other, isDark: isDark, t: t),
+                _PasswordList(
+                  passwords: wifi, isDark: isDark, t: t,
+                  onEdit: (p) => _showPasswordForm(context, isDark, t, editing: p),
+                  onDelete: (p) => _confirmDelete(context, p, t),
+                ),
+                _PasswordList(
+                  passwords: streaming, isDark: isDark, t: t,
+                  onEdit: (p) => _showPasswordForm(context, isDark, t, editing: p),
+                  onDelete: (p) => _confirmDelete(context, p, t),
+                ),
+                _PasswordList(
+                  passwords: other, isDark: isDark, t: t,
+                  onEdit: (p) => _showPasswordForm(context, isDark, t, editing: p),
+                  onDelete: (p) => _confirmDelete(context, p, t),
+                ),
               ],
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddPassword(context, isDark, t),
+        onPressed: () => _showPasswordForm(context, isDark, t),
         child: const Icon(Icons.add_rounded),
       ),
     );
   }
 
-  void _showAddPassword(BuildContext context, bool isDark, String Function(String) t) {
-    final nameCtrl = TextEditingController();
-    final valueCtrl = TextEditingController();
-    String selectedCategory = 'other';
+  void _confirmDelete(BuildContext context, PasswordModel p, String Function(String) t) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('common.confirm')),
+        content: Text('${t('common.deleteConfirm')} "${p.name}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.cancel'))),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(passwordsProvider.notifier).deletePassword(p.id);
+            },
+            child: Text(t('common.delete'), style: const TextStyle(color: AppColors.destructive)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPasswordForm(BuildContext context, bool isDark, String Function(String) t,
+      {PasswordModel? editing}) {
+    final nameCtrl = TextEditingController(text: editing?.name ?? '');
+    final valueCtrl = TextEditingController(text: editing?.value ?? '');
+    String selectedCategory = editing?.category ?? 'other';
     final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
@@ -108,10 +141,12 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(t('passwords.add'),
-                      style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w600, fontSize: 18,
-                          color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                  Text(
+                    editing == null ? t('passwords.add') : t('common.edit'),
+                    style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600, fontSize: 18,
+                        color: isDark ? AppColors.foregroundDark : AppColors.foreground),
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: nameCtrl,
@@ -126,6 +161,7 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage>
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    value: selectedCategory,
                     decoration: InputDecoration(labelText: t('passwords.category')),
                     items: [
                       DropdownMenuItem(value: 'wifi', child: Text(t('passwords.wifi'))),
@@ -141,12 +177,21 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage>
                     child: ElevatedButton(
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
-                        await ref.read(passwordsProvider.notifier).addPassword(
-                          name: nameCtrl.text.trim(),
-                          value: valueCtrl.text.trim(),
-                          category: selectedCategory,
-                          createdBy: authState.user?.uid ?? '',
-                        );
+                        if (editing == null) {
+                          await ref.read(passwordsProvider.notifier).addPassword(
+                            name: nameCtrl.text.trim(),
+                            value: valueCtrl.text.trim(),
+                            category: selectedCategory,
+                            createdBy: authState.user?.uid ?? '',
+                          );
+                        } else {
+                          await ref.read(passwordsProvider.notifier).updatePassword(
+                            passwordId: editing.id,
+                            name: nameCtrl.text.trim(),
+                            value: valueCtrl.text.trim(),
+                            category: selectedCategory,
+                          );
+                        }
                         if (ctx.mounted) Navigator.pop(ctx);
                       },
                       child: Text(t('common.save')),
@@ -167,8 +212,16 @@ class _PasswordList extends ConsumerWidget {
   final List<PasswordModel> passwords;
   final bool isDark;
   final String Function(String) t;
+  final void Function(PasswordModel) onEdit;
+  final void Function(PasswordModel) onDelete;
 
-  const _PasswordList({required this.passwords, required this.isDark, required this.t});
+  const _PasswordList({
+    required this.passwords,
+    required this.isDark,
+    required this.t,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -176,15 +229,20 @@ class _PasswordList extends ConsumerWidget {
       return EmptyState(icon: Icons.lock_outline_rounded, message: t('passwords.noPasswords'));
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: passwords.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, i) => _PasswordCard(
-        password: passwords[i],
-        isDark: isDark,
-        t: t,
-        onDelete: () => ref.read(passwordsProvider.notifier).deletePassword(passwords[i].id),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () => ref.read(passwordsProvider.notifier).refresh(),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: passwords.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, i) => _PasswordCard(
+          password: passwords[i],
+          isDark: isDark,
+          t: t,
+          onEdit: () => onEdit(passwords[i]),
+          onDelete: () => onDelete(passwords[i]),
+        ),
       ),
     );
   }
@@ -194,12 +252,14 @@ class _PasswordCard extends StatefulWidget {
   final PasswordModel password;
   final bool isDark;
   final String Function(String) t;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _PasswordCard({
     required this.password,
     required this.isDark,
     required this.t,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -274,6 +334,12 @@ class _PasswordCardState extends State<_PasswordCard> {
                     duration: const Duration(seconds: 2)),
               );
             },
+            visualDensity: VisualDensity.compact,
+          ),
+          IconButton(
+            icon: Icon(Icons.edit_outlined, size: 18,
+                color: widget.isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+            onPressed: widget.onEdit,
             visualDensity: VisualDensity.compact,
           ),
           IconButton(

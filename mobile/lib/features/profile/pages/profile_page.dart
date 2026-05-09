@@ -1,11 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../../shared/widgets/member_avatar.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../members/providers/members_provider.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -17,19 +21,165 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late TextEditingController _nameCtrl;
   bool _editing = false;
-  bool _loading = false;
+  bool _loadingName = false;
+  bool _loadingAvatar = false;
+
+  late TextEditingController _phoneCtrl;
+  late TextEditingController _emergencyContactCtrl;
+  late TextEditingController _emergencyPhoneCtrl;
+  bool _editingContact = false;
+  bool _loadingContact = false;
 
   @override
   void initState() {
     super.initState();
-    final profile = ref.read(authProvider).profile;
-    _nameCtrl = TextEditingController(text: profile?.name ?? '');
+    final auth = ref.read(authProvider);
+    _nameCtrl = TextEditingController(text: auth.profile?.name ?? '');
+    _phoneCtrl = TextEditingController(text: auth.houseMembership?.phone ?? '');
+    _emergencyContactCtrl = TextEditingController(text: auth.houseMembership?.emergencyContact ?? '');
+    _emergencyPhoneCtrl = TextEditingController(text: auth.houseMembership?.emergencyPhone ?? '');
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emergencyContactCtrl.dispose();
+    _emergencyPhoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAvatar() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 600,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _loadingAvatar = true);
+    final err = await ref
+        .read(authProvider.notifier)
+        .updateAvatar(File(picked.path));
+    if (!mounted) return;
+    setState(() => _loadingAvatar = false);
+
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
+  Future<void> _pickColor(String hex) async {
+    final err = await ref.read(authProvider.notifier).updateColor(hex);
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
+  void _showAvatarSheet(BuildContext context, String currentColor, String Function(String) t) {
+    const colors = AppColors.memberColors;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Photo section
+              Text(
+                t('profile.changeAvatar'),
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _pickAvatar();
+                  },
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: Text(t('profile.pickGallery')),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              // Color section
+              Text(
+                t('profile.changeColor'),
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: colors.map((c) {
+                  final hex = '#${c.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+                  final selected = hex.toLowerCase() == currentColor.toLowerCase();
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _pickColor(hex);
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: selected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                        boxShadow: selected
+                            ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 6, spreadRadius: 1)]
+                            : null,
+                      ),
+                      child: selected
+                          ? const Icon(Icons.check, color: Colors.white, size: 20)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -60,18 +210,60 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
               child: Column(
                 children: [
-                  profile != null
-                      ? MemberAvatar(name: profile.name, color: profile.color, radius: 40)
-                      : CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                          child: const Icon(Icons.person, size: 40, color: AppColors.primary),
+                  Stack(
+                    children: [
+                      _loadingAvatar
+                          ? CircleAvatar(
+                              radius: 40,
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                              child: const SizedBox(
+                                width: 30,
+                                height: 30,
+                                child: CircularProgressIndicator(strokeWidth: 2.5),
+                              ),
+                            )
+                          : profile != null
+                              ? MemberAvatar(
+                                  name: profile.name,
+                                  color: profile.color,
+                                  avatarUrl: profile.avatarUrl,
+                                  radius: 40,
+                                )
+                              : CircleAvatar(
+                                  radius: 40,
+                                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                                  child: const Icon(Icons.person, size: 40, color: AppColors.primary),
+                                ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: GestureDetector(
+                          onTap: _loadingAvatar
+                              ? null
+                              : () => _showAvatarSheet(context, profile?.color ?? '#2A9D90', t),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark ? AppColors.cardDark : AppColors.card,
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                          ),
                         ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     profile?.name ?? '',
                     style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w700, fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
                         color: isDark ? AppColors.foregroundDark : AppColors.foreground),
                   ),
                   const SizedBox(height: 4),
@@ -94,8 +286,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       child: Text(
                         membership.isAdmin ? t('members.admin') : t('members.member'),
                         style: GoogleFonts.inter(
-                            fontSize: 12, fontWeight: FontWeight.w600,
-                            color: membership.isAdmin ? AppColors.primary : (isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: membership.isAdmin
+                                ? AppColors.primary
+                                : (isDark ? AppColors.foregroundDark : AppColors.foreground)),
                       ),
                     ),
                   ],
@@ -120,20 +315,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       Text(t('profile.info'),
                           style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w600, fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
                               color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
                       TextButton(
                         onPressed: _editing
                             ? () async {
-                                setState(() => _loading = true);
+                                setState(() => _loadingName = true);
                                 await ref.read(authProvider.notifier).updateProfile(
-                                  name: _nameCtrl.text.trim(),
-                                );
-                                setState(() { _loading = false; _editing = false; });
+                                      name: _nameCtrl.text.trim(),
+                                    );
+                                if (mounted) {
+                                  setState(() {
+                                    _loadingName = false;
+                                    _editing = false;
+                                  });
+                                }
                               }
                             : () => setState(() => _editing = true),
-                        child: Text(_editing ? t('common.save') : t('common.edit'),
-                            style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                        child: Text(
+                          _editing ? t('common.save') : t('common.edit'),
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ),
@@ -149,13 +355,117 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       value: profile?.name ?? '-',
                       isDark: isDark,
                     ),
-                  if (_loading) ...[
+                  if (_loadingName) ...[
                     const SizedBox(height: 8),
                     const LinearProgressIndicator(),
                   ],
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Contact info
+            if (membership != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.cardDark : AppColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(t('profile.contact'),
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                        TextButton(
+                          onPressed: _editingContact
+                              ? () async {
+                                  setState(() => _loadingContact = true);
+                                  final uid = ref.read(authProvider).user?.uid ?? '';
+                                  await ref.read(membersProvider.notifier).updateMemberContact(
+                                    uid,
+                                    phone: _phoneCtrl.text.trim(),
+                                    emergencyContact: _emergencyContactCtrl.text.trim(),
+                                    emergencyPhone: _emergencyPhoneCtrl.text.trim(),
+                                  );
+                                  await ref.read(authProvider.notifier).refreshHouse();
+                                  if (mounted) setState(() { _loadingContact = false; _editingContact = false; });
+                                }
+                              : () => setState(() => _editingContact = true),
+                          child: Text(
+                            _editingContact ? t('common.save') : t('common.edit'),
+                            style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_editingContact) ...[
+                      TextField(
+                        controller: _phoneCtrl,
+                        decoration: InputDecoration(
+                          labelText: t('members.phone'),
+                          prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+                          hintText: '(XX) XXXXX-XXXX',
+                        ),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [_PhoneMaskFormatter()],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _emergencyContactCtrl,
+                        decoration: InputDecoration(
+                          labelText: t('members.emergencyContact'),
+                          prefixIcon: const Icon(Icons.contact_emergency_outlined, size: 18),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _emergencyPhoneCtrl,
+                        decoration: InputDecoration(
+                          labelText: t('members.emergencyPhone'),
+                          prefixIcon: const Icon(Icons.emergency_outlined, size: 18),
+                          hintText: '(XX) XXXXX-XXXX',
+                        ),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [_PhoneMaskFormatter()],
+                      ),
+                    ] else ...[
+                      _InfoRow(
+                        label: t('members.phone'),
+                        value: membership.phone?.isNotEmpty == true ? membership.phone! : '-',
+                        isDark: isDark,
+                      ),
+                      const Divider(height: 20),
+                      _InfoRow(
+                        label: t('members.emergencyContact'),
+                        value: membership.emergencyContact?.isNotEmpty == true ? membership.emergencyContact! : '-',
+                        isDark: isDark,
+                      ),
+                      const Divider(height: 20),
+                      _InfoRow(
+                        label: t('members.emergencyPhone'),
+                        value: membership.emergencyPhone?.isNotEmpty == true ? membership.emergencyPhone! : '-',
+                        isDark: isDark,
+                      ),
+                    ],
+                    if (_loadingContact) ...[
+                      const SizedBox(height: 8),
+                      const LinearProgressIndicator(),
+                    ],
+                  ],
+                ),
+              ),
             const SizedBox(height: 16),
 
             // House info
@@ -172,22 +482,47 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   children: [
                     Text(t('profile.house'),
                         style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w600, fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
                             color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
                     const SizedBox(height: 12),
                     _InfoRow(label: t('common.name'), value: house.name, isDark: isDark),
-                    if (house.address != null) ...[
+                    if (house.displayAddress.isNotEmpty) ...[
                       const Divider(height: 20),
-                      _InfoRow(label: t('address.title'), value: house.address!, isDark: isDark),
+                      _InfoRow(label: t('address.title'), value: house.displayAddress, isDark: isDark),
                     ],
                     const Divider(height: 20),
-                    _InfoRow(label: t('members.inviteCode'), value: house.inviteCode, isDark: isDark),
+                    _InfoRow(
+                        label: t('members.inviteCode'),
+                        value: house.inviteCode,
+                        isDark: isDark),
                   ],
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PhoneMaskFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue _, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final d = digits.length > 11 ? digits.substring(0, 11) : digits;
+    if (d.isEmpty) return newValue.copyWith(text: '');
+    late final String mask;
+    if (d.length <= 2) {
+      mask = '($d';
+    } else if (d.length <= 7) {
+      mask = '(${d.substring(0, 2)}) ${d.substring(2)}';
+    } else {
+      mask = '(${d.substring(0, 2)}) ${d.substring(2, 7)}-${d.substring(7)}';
+    }
+    return newValue.copyWith(
+      text: mask,
+      selection: TextSelection.collapsed(offset: mask.length),
     );
   }
 }
@@ -214,7 +549,8 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(value,
               style: GoogleFonts.inter(
-                  fontSize: 13, fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                   color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
         ),
       ],

@@ -1,0 +1,148 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getMember(houseId) {
+      return get(/databases/$(database)/documents/houses/$(houseId)/members/$(request.auth.uid));
+    }
+
+    function isMember(houseId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/houses/$(houseId)/members/$(request.auth.uid));
+    }
+
+    function role(houseId) {
+      return getMember(houseId).data.role;
+    }
+
+    function isAdmin(houseId) {
+      return isMember(houseId) && role(houseId) == 'admin';
+    }
+
+    function isAdminOrOwner(houseId) {
+      return isMember(houseId) && role(houseId) in ['admin', 'owner'];
+    }
+
+    function isAtLeastMember(houseId) {
+      return isMember(houseId) && role(houseId) in ['admin', 'owner', 'member'];
+    }
+
+    // ─── Users ────────────────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      allow read:   if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ─── Houses ───────────────────────────────────────────────────────────────
+
+    match /houses/{houseId} {
+      allow read:   if isMember(houseId);
+      allow create: if isSignedIn();
+      allow update: if isAdminOrOwner(houseId);
+      allow delete: if isAdmin(houseId);
+
+      // Members subcollection
+      match /members/{memberId} {
+        // All members can see who else is in the house
+        allow read:   if isMember(houseId);
+        // Only admin can add members or change roles
+        allow create: if isAdmin(houseId) || (isSignedIn() && request.auth.uid == memberId);
+        allow update: if isAdmin(houseId);
+        // Admin can remove anyone; a member can remove themselves
+        allow delete: if isAdmin(houseId) || (isSignedIn() && request.auth.uid == memberId);
+      }
+
+      // Tasks subcollection
+      match /tasks/{taskId} {
+        allow read:   if isMember(houseId);
+        // Any member (including guest) can create and mark complete
+        allow create: if isAtLeastMember(houseId);
+        allow update: if isMember(houseId);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Bills subcollection
+      match /bills/{billId} {
+        allow read:   if isMember(houseId);
+        allow create: if isAdminOrOwner(houseId);
+        allow update: if isAtLeastMember(houseId); // member can mark paid
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Events subcollection
+      match /events/{eventId} {
+        allow read:   if isMember(houseId);
+        allow create: if isAtLeastMember(houseId);
+        allow update: if isAtLeastMember(houseId);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Inventory subcollection
+      match /inventory/{itemId} {
+        allow read:   if isMember(houseId);
+        allow create: if isAtLeastMember(houseId);
+        // Member can edit own items; admin/owner can edit any
+        allow update: if isAdminOrOwner(houseId) ||
+                         (isAtLeastMember(houseId) && resource.data.ownerId == request.auth.uid);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Shopping subcollection
+      match /shopping/{itemId} {
+        allow read:   if isMember(houseId);
+        // Even guests can add items to the shopping list
+        allow create: if isMember(houseId);
+        allow update: if isAtLeastMember(houseId);
+        allow delete: if isAtLeastMember(houseId);
+      }
+
+      // Rules subcollection
+      match /rules/{ruleId} {
+        allow read:   if isMember(houseId);
+        allow create: if isAdminOrOwner(houseId);
+        allow update: if isAdminOrOwner(houseId);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Damaged items subcollection
+      match /damaged/{damageId} {
+        allow read:   if isMember(houseId);
+        allow create: if isAtLeastMember(houseId);
+        allow update: if isAtLeastMember(houseId);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Passwords subcollection — guests cannot access
+      match /passwords/{passwordId} {
+        allow read:   if isAtLeastMember(houseId);
+        allow create: if isAtLeastMember(houseId);
+        allow update: if isAtLeastMember(houseId);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Purchases (shopping history) subcollection
+      match /purchases/{purchaseId} {
+        allow read:   if isMember(houseId);
+        allow create: if isAtLeastMember(houseId);
+        allow update: if isAtLeastMember(houseId);
+        allow delete: if isAdminOrOwner(houseId);
+      }
+
+      // Config subcollection (permissions document, etc.)
+      match /config/{configId} {
+        allow read:   if isMember(houseId);
+        allow write:  if isAdmin(houseId);
+      }
+    }
+  }
+}

@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import '../models/auth_models.dart';
 
@@ -315,12 +317,115 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
   }
 
+  Future<String?> deleteAccount(String password) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null || user.email == null) return 'Usuário não autenticado';
+
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      final uid = user.uid;
+      final houseId = state.currentHouse?.id;
+
+      final batch = _db.batch();
+      if (houseId != null && houseId.isNotEmpty) {
+        batch.delete(
+            _db.collection('houses').doc(houseId).collection('members').doc(uid));
+      }
+      batch.delete(_db.collection('users').doc(uid));
+      await batch.commit();
+
+      await user.delete();
+
+      state = const AuthState(loading: false);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return _authErrorMessage(e.code);
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> updateHouseAddress(String address) async {
     final houseId = state.currentHouse?.id;
     final uid = _auth.currentUser?.uid;
     if (houseId == null || uid == null) return 'Erro: casa não encontrada';
     try {
       await _db.collection('houses').doc(houseId).update({'address': address});
+      await _fetchHouseMembership(uid);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateHouseDetails(Map<String, dynamic> data) async {
+    final houseId = state.currentHouse?.id;
+    final uid = _auth.currentUser?.uid;
+    if (houseId == null || uid == null) return 'Erro: casa não encontrada';
+    try {
+      await _db.collection('houses').doc(houseId).update(data);
+      await _fetchHouseMembership(uid);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateAvatar(File file) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return 'Usuário não autenticado';
+    try {
+      final ext = file.path.split('.').last;
+      final ref = FirebaseStorage.instance.ref('users/$uid/avatar.$ext');
+      await ref.putFile(file);
+      final url = await ref.getDownloadURL();
+      await _db.collection('users').doc(uid).update({'avatarUrl': url});
+      if (state.currentHouse != null) {
+        await _db
+            .collection('houses')
+            .doc(state.currentHouse!.id)
+            .collection('members')
+            .doc(uid)
+            .update({'avatarUrl': url});
+      }
+      await _fetchProfile(uid);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateColor(String hex) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return 'Usuário não autenticado';
+    try {
+      await _db.collection('users').doc(uid).update({'color': hex});
+      if (state.currentHouse != null) {
+        await _db
+            .collection('houses')
+            .doc(state.currentHouse!.id)
+            .collection('members')
+            .doc(uid)
+            .update({'color': hex});
+      }
+      await _fetchProfile(uid);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateHouseName(String name) async {
+    final houseId = state.currentHouse?.id;
+    final uid = _auth.currentUser?.uid;
+    if (houseId == null || uid == null) return 'Erro: casa não encontrada';
+    try {
+      await _db.collection('houses').doc(houseId).update({'name': name});
       await _fetchHouseMembership(uid);
       return null;
     } catch (e) {

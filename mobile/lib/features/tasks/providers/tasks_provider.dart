@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/task_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -46,6 +48,7 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     String? dueDate,
     String? recurring,
     required String createdBy,
+    bool photoRequired = false,
   }) async {
     try {
       await _col.add({
@@ -57,6 +60,9 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         if (recurring != null) 'recurring': recurring,
         'completed': false,
         'createdBy': createdBy,
+        'photoRequired': photoRequired,
+        'photosBefore': [],
+        'photosAfter': [],
         'createdAt': FieldValue.serverTimestamp(),
       });
       return null;
@@ -65,10 +71,33 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     }
   }
 
-  Future<void> toggleComplete(String taskId, bool completed) async {
+  Future<String?> addPhoto(String taskId, File file, {required bool isBefore}) async {
     try {
-      await _col.doc(taskId).update({'completed': completed});
-    } catch (_) {}
+      final ext = file.path.split('.').last;
+      final ref = FirebaseStorage.instance
+          .ref('houses/$_houseId/tasks/$taskId/${isBefore ? 'before' : 'after'}_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await ref.putFile(file);
+      final url = await ref.getDownloadURL();
+      final field = isBefore ? 'photosBefore' : 'photosAfter';
+      await _col.doc(taskId).update({field: FieldValue.arrayUnion([url])});
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> removePhoto(String taskId, String url, {required bool isBefore}) async {
+    try {
+      final field = isBefore ? 'photosBefore' : 'photosAfter';
+      await _col.doc(taskId).update({field: FieldValue.arrayRemove([url])});
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<void> toggleComplete(String taskId, bool completed) async {
+    await _col.doc(taskId).update({'completed': completed});
   }
 
   Future<String?> deleteTask(String taskId) async {
@@ -78,6 +107,13 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 

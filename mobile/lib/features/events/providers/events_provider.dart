@@ -23,16 +23,60 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     }
     _sub = _col.orderBy('eventDate').snapshots().listen(
       (snap) {
-        state = AsyncValue.data(
-          snap.docs
-              .map((d) =>
-                  EventModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-              .toList(),
-        );
+        final base = snap.docs
+            .map((d) => EventModel.fromMap(d.id, d.data() as Map<String, dynamic>))
+            .toList();
+        state = AsyncValue.data(_expand(base));
       },
       onError: (e, s) => state = AsyncValue.error(e, s),
     );
   }
+
+  static List<EventModel> _expand(List<EventModel> base) {
+    final result = <EventModel>[];
+    final cutoff = DateTime.now().add(const Duration(days: 366));
+
+    for (final e in base) {
+      result.add(e);
+      if (e.recurring == null) continue;
+
+      DateTime end = cutoff;
+      if (e.recurringUntil != null) {
+        final parsed = DateTime.tryParse(e.recurringUntil!);
+        if (parsed != null && parsed.isBefore(cutoff)) end = parsed;
+      }
+
+      DateTime cursor = DateTime.parse(e.eventDate);
+      for (int i = 0; i < 366; i++) {
+        cursor = _nextDate(cursor, e.recurring!);
+        if (cursor.isAfter(end)) break;
+        final dateStr = _fmt(cursor);
+        result.add(e.asVirtualOccurrence('${e.id}_$dateStr', dateStr));
+      }
+    }
+
+    return result;
+  }
+
+  static DateTime _nextDate(DateTime from, String recurring) {
+    switch (recurring) {
+      case 'daily':
+        return from.add(const Duration(days: 1));
+      case 'weekly':
+        return from.add(const Duration(days: 7));
+      case 'biweekly':
+        return from.add(const Duration(days: 14));
+      case 'monthly':
+        return DateTime(from.year, from.month + 1, from.day);
+      case 'yearly':
+        return DateTime(from.year + 1, from.month, from.day);
+      default:
+        return from.add(const Duration(days: 7));
+    }
+  }
+
+  static String _fmt(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   void dispose() {
@@ -45,8 +89,11 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     String? description,
     required String eventDate,
     String? eventTime,
+    String? eventEndTime,
     String? location,
     required String createdBy,
+    String? recurring,
+    String? recurringUntil,
   }) async {
     try {
       await _col.add({
@@ -55,9 +102,40 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
         if (description != null) 'description': description,
         'eventDate': eventDate,
         if (eventTime != null) 'eventTime': eventTime,
+        if (eventEndTime != null) 'eventEndTime': eventEndTime,
         if (location != null) 'location': location,
         'createdBy': createdBy,
+        if (recurring != null) 'recurring': recurring,
+        if (recurringUntil != null) 'recurringUntil': recurringUntil,
         'createdAt': FieldValue.serverTimestamp(),
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> updateEvent({
+    required String eventId,
+    required String title,
+    String? description,
+    required String eventDate,
+    String? eventTime,
+    String? eventEndTime,
+    String? location,
+    String? recurring,
+    String? recurringUntil,
+  }) async {
+    try {
+      await _col.doc(eventId).update({
+        'title': title,
+        if (description != null) 'description': description else 'description': FieldValue.delete(),
+        'eventDate': eventDate,
+        if (eventTime != null) 'eventTime': eventTime else 'eventTime': FieldValue.delete(),
+        if (eventEndTime != null) 'eventEndTime': eventEndTime else 'eventEndTime': FieldValue.delete(),
+        if (location != null) 'location': location else 'location': FieldValue.delete(),
+        if (recurring != null) 'recurring': recurring else 'recurring': FieldValue.delete(),
+        if (recurringUntil != null) 'recurringUntil': recurringUntil else 'recurringUntil': FieldValue.delete(),
       });
       return null;
     } catch (e) {
@@ -72,6 +150,13 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 

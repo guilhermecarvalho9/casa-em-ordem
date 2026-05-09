@@ -45,6 +45,7 @@ class MembersPage extends ConsumerWidget {
                     isDark: isDark,
                     isCurrentUser: isCurrentUser,
                     t: t,
+                    onTap: () => _showMemberProfile(context, ref, members[i], isAdmin, isCurrentUser, t, isDark),
                     onDelete: canManage
                         ? () => _confirmDelete(context, ref, members[i], t)
                         : null,
@@ -64,6 +65,178 @@ class MembersPage extends ConsumerWidget {
               child: const Icon(Icons.share_rounded),
             )
           : null,
+    );
+  }
+
+  void _showMemberProfile(
+    BuildContext context,
+    WidgetRef ref,
+    MemberModel member,
+    bool isAdmin,
+    bool isCurrentUser,
+    String Function(String) t,
+    bool isDark,
+  ) {
+    final phoneCtrl = TextEditingController(text: member.phone ?? '');
+    final emergencyContactCtrl = TextEditingController(text: member.emergencyContact ?? '');
+    final emergencyPhoneCtrl = TextEditingController(text: member.emergencyPhone ?? '');
+    bool editingContact = false;
+
+    String formatDate(String date) {
+      if (date.isEmpty) return '-';
+      try {
+        final d = DateTime.parse(date);
+        return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+      } catch (_) {
+        return date;
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? AppColors.cardDark : AppColors.card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setState2) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          maxChildSize: 0.92,
+          builder: (_, scrollCtrl) => ListView(
+            controller: scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.borderDark : AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Center(child: MemberAvatar(name: member.name, color: member.color, radius: 36)),
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  member.name,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700, fontSize: 20,
+                      color: isDark ? AppColors.foregroundDark : AppColors.foreground),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: StatusBadge(
+                  label: t('members.role.${member.role}'),
+                  type: member.isAdmin ? BadgeType.success : BadgeType.info,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Info rows
+              _ProfileInfoRow(
+                icon: Icons.calendar_today_outlined,
+                label: t('members.entry'),
+                value: formatDate(member.entryDate),
+                isDark: isDark,
+              ),
+              if (member.expiresAt != null)
+                _ProfileInfoRow(
+                  icon: Icons.timer_outlined,
+                  label: t('members.expiresOn'),
+                  value: formatDate(member.expiresAt!),
+                  isDark: isDark,
+                  valueColor: AppColors.destructive,
+                ),
+              const Divider(height: 24),
+              // Contact info section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(t('members.contact'),
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                  if (isAdmin || isCurrentUser)
+                    TextButton(
+                      onPressed: () async {
+                        if (editingContact) {
+                          await ref.read(membersProvider.notifier).updateMemberContact(
+                            member.id,
+                            phone: phoneCtrl.text.trim(),
+                            emergencyContact: emergencyContactCtrl.text.trim(),
+                            emergencyPhone: emergencyPhoneCtrl.text.trim(),
+                          );
+                          setState2(() => editingContact = false);
+                        } else {
+                          setState2(() => editingContact = true);
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                      child: Text(editingContact ? t('common.save') : t('common.edit'),
+                          style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (editingContact) ...[
+                TextField(
+                  controller: phoneCtrl,
+                  decoration: InputDecoration(
+                    labelText: t('members.phone'),
+                    prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+                    isDense: true,
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: emergencyContactCtrl,
+                  decoration: InputDecoration(
+                    labelText: t('members.emergencyContact'),
+                    prefixIcon: const Icon(Icons.person_pin_outlined, size: 18),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: emergencyPhoneCtrl,
+                  decoration: InputDecoration(
+                    labelText: t('members.emergencyPhone'),
+                    prefixIcon: const Icon(Icons.emergency_outlined, size: 18),
+                    isDense: true,
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+              ] else ...[
+                _ProfileInfoRow(
+                  icon: Icons.phone_outlined,
+                  label: t('members.phone'),
+                  value: member.phone ?? '-',
+                  isDark: isDark,
+                ),
+                _ProfileInfoRow(
+                  icon: Icons.person_pin_outlined,
+                  label: t('members.emergencyContact'),
+                  value: member.emergencyContact ?? '-',
+                  isDark: isDark,
+                ),
+                _ProfileInfoRow(
+                  icon: Icons.emergency_outlined,
+                  label: t('members.emergencyPhone'),
+                  value: member.emergencyPhone ?? '-',
+                  isDark: isDark,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -191,6 +364,7 @@ class _MemberCard extends StatelessWidget {
   final bool isDark;
   final bool isCurrentUser;
   final String Function(String) t;
+  final VoidCallback? onTap;
   final VoidCallback? onDelete;
   final VoidCallback? onChangeRole;
   final VoidCallback? onSetExpiry;
@@ -200,6 +374,7 @@ class _MemberCard extends StatelessWidget {
     required this.isDark,
     required this.isCurrentUser,
     required this.t,
+    this.onTap,
     this.onDelete,
     this.onChangeRole,
     this.onSetExpiry,
@@ -237,7 +412,10 @@ class _MemberCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final expired = _isExpired;
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? AppColors.cardDark : AppColors.card,
@@ -337,6 +515,50 @@ class _MemberCard extends StatelessWidget {
               onPressed: onDelete,
               visualDensity: VisualDensity.compact,
             ),
+        ],
+      ),
+    ));
+  }
+}
+
+class _ProfileInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isDark;
+  final Color? valueColor;
+
+  const _ProfileInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isDark,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16,
+              color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 120,
+            child: Text(label,
+                style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: GoogleFonts.inter(
+                    fontSize: 13, fontWeight: FontWeight.w500,
+                    color: valueColor ?? (isDark ? AppColors.foregroundDark : AppColors.foreground))),
+          ),
         ],
       ),
     );

@@ -11,6 +11,9 @@ class TaskModel {
   final String? recurring;
   final String? createdBy;
   final String createdAt;
+  final bool photoRequired;
+  final List<String> photosBefore;
+  final List<String> photosAfter;
 
   const TaskModel({
     required this.id,
@@ -23,9 +26,17 @@ class TaskModel {
     this.recurring,
     this.createdBy,
     required this.createdAt,
+    this.photoRequired = false,
+    this.photosBefore = const [],
+    this.photosAfter = const [],
   });
 
   factory TaskModel.fromMap(String id, Map<String, dynamic> map) {
+    List<String> toStringList(dynamic v) {
+      if (v is List) return v.whereType<String>().toList();
+      return [];
+    }
+
     return TaskModel(
       id: id,
       houseId: map['houseId'] as String? ?? '',
@@ -39,6 +50,9 @@ class TaskModel {
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
           : (map['createdAt'] as String? ?? ''),
+      photoRequired: map['photoRequired'] as bool? ?? false,
+      photosBefore: toStringList(map['photosBefore']),
+      photosAfter: toStringList(map['photosAfter']),
     );
   }
 }

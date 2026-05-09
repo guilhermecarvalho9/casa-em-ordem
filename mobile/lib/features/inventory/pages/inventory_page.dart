@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -11,6 +12,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../members/providers/members_provider.dart';
+import '../../permissions/providers/permissions_provider.dart';
 import '../models/inventory_item_model.dart';
 import '../providers/inventory_provider.dart';
 
@@ -33,6 +35,8 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final authState = ref.watch(authProvider);
     final inventoryAsync = ref.watch(inventoryProvider);
     final membersAsync = ref.watch(membersProvider);
+    final perms = ref.watch(permissionsProvider);
+    final myRole = authState.houseMembership?.role ?? 'guest';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String t(String key) => AppTranslations.translate(appState.language, key);
 
@@ -112,36 +116,40 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
 
                 return Column(
                   children: [
-                    // Value summary
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                    // Value summary — only shown when at least one item has a value
+                    if (totalValue > 0)
+                      Container(
+                        margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${filtered.length} ${t('inventory.items')}',
+                              style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: isDark ? AppColors.foregroundDark : AppColors.foreground),
+                            ),
+                            Text(
+                              'Total: ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ').format(totalValue)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${filtered.length} ${t('inventory.items')}',
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: isDark ? AppColors.foregroundDark : AppColors.foreground),
-                          ),
-                          Text(
-                            'Total: R\$ ${totalValue.toStringAsFixed(2)}',
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary),
-                          ),
-                        ],
-                      ),
-                    ),
                     Expanded(
-                      child: ListView.separated(
+                      child: RefreshIndicator(
+                        color: AppColors.primary,
+                        onRefresh: () => ref.read(inventoryProvider.notifier).refresh(),
+                        child: ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -149,12 +157,16 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                           item: filtered[i],
                           isDark: isDark,
                           t: t,
-                          canEdit: isAdmin ||
-                              filtered[i].ownerId == authState.user?.uid,
-                          onEdit: () => _showEditItem(
-                              context, filtered[i], members, t, isDark, authState.user?.uid ?? ''),
-                          onDelete: () => _confirmDelete(context, ref, filtered[i], t),
+                          canEdit: perms.can('inventory.edit', myRole) &&
+                              (isAdmin || filtered[i].ownerId == authState.user?.uid),
+                          onEdit: perms.can('inventory.edit', myRole)
+                              ? () => _showEditItem(
+                                  context, filtered[i], members, t, isDark, authState.user?.uid ?? '')
+                              : null,
+                          onDelete: perms.can('inventory.delete', myRole)
+                              ? () => _confirmDelete(context, ref, filtered[i], t) : null,
                         ),
+                      ),
                       ),
                     ),
                   ],
@@ -164,10 +176,12 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddItem(context, members, t, isDark, authState.user?.uid ?? ''),
-        child: const Icon(Icons.add_rounded),
-      ),
+      floatingActionButton: perms.can('inventory.add', myRole)
+          ? FloatingActionButton(
+              onPressed: () => _showAddItem(context, members, t, isDark, authState.user?.uid ?? ''),
+              child: const Icon(Icons.add_rounded),
+            )
+          : null,
     );
   }
 
@@ -177,13 +191,8 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
       backgroundColor: isDark ? AppColors.cardDark : AppColors.card,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 12),
+      builder: (ctx) {
+        final items = [
           ListTile(
             leading: const Icon(Icons.people_outline_rounded),
             title: Text(t('inventory.allOwners')),
@@ -197,9 +206,29 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
             selected: _filterOwner == m.userId,
             selectedColor: AppColors.primary,
           )),
-          const SizedBox(height: 8),
-        ],
-      ),
+        ];
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(width: 40, height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.5,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: items,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -209,13 +238,8 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
       backgroundColor: isDark ? AppColors.cardDark : AppColors.card,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 12),
+      builder: (ctx) {
+        final items = [
           ListTile(
             leading: const Icon(Icons.category_outlined),
             title: Text(t('inventory.allCategories')),
@@ -230,9 +254,29 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
             selected: _filterCategory == c,
             selectedColor: AppColors.primary,
           )),
-          const SizedBox(height: 8),
-        ],
-      ),
+        ];
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(width: 40, height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.5,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: items,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -458,16 +502,16 @@ class _InventoryCard extends StatelessWidget {
   final bool isDark;
   final String Function(String) t;
   final bool canEdit;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _InventoryCard({
     required this.item,
     required this.isDark,
     required this.t,
     required this.canEdit,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -479,12 +523,13 @@ class _InventoryCard extends StatelessWidget {
         border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Photo or placeholder
           ClipRRect(
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
             child: SizedBox(
-              width: 80, height: 80,
+              width: 80,
               child: item.photoUrl != null
                   ? CachedNetworkImage(
                       imageUrl: item.photoUrl!,
@@ -526,7 +571,7 @@ class _InventoryCard extends StatelessWidget {
                   if (item.value > 0) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'R\$ ${item.value.toStringAsFixed(2)}',
+                      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ').format(item.value),
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary),
                     ),

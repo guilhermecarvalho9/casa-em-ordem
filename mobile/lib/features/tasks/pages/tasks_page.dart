@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -8,6 +11,7 @@ import '../../../shared/widgets/member_avatar.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../members/providers/members_provider.dart';
+import '../../permissions/providers/permissions_provider.dart';
 import '../models/task_model.dart';
 import '../providers/tasks_provider.dart';
 
@@ -38,6 +42,8 @@ class _TasksPageState extends ConsumerState<TasksPage>
   Widget build(BuildContext context) {
     final appState = ref.watch(appProvider);
     final tasksAsync = ref.watch(tasksProvider);
+    final perms = ref.watch(permissionsProvider);
+    final myRole = ref.watch(authProvider).houseMembership?.role ?? 'guest';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String t(String key) => AppTranslations.translate(appState.language, key);
 
@@ -66,25 +72,247 @@ class _TasksPageState extends ConsumerState<TasksPage>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _TaskList(tasks: pending, isDark: isDark, t: t),
-                _TaskList(tasks: completed, isDark: isDark, t: t),
+                _TaskList(
+                  tasks: pending, isDark: isDark, t: t,
+                  onDelete: perms.can('tasks.delete', myRole)
+                      ? (task) => _confirmDelete(context, task, t) : null,
+                  onTap: (task) => _showTaskDetail(context, task, isDark, t),
+                ),
+                _TaskList(
+                  tasks: completed, isDark: isDark, t: t,
+                  onDelete: perms.can('tasks.delete', myRole)
+                      ? (task) => _confirmDelete(context, task, t) : null,
+                  onTap: (task) => _showTaskDetail(context, task, isDark, t),
+                ),
               ],
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddTask(context, isDark, t),
-        child: const Icon(Icons.add_rounded),
+      floatingActionButton: perms.can('tasks.add', myRole)
+          ? FloatingActionButton(
+              onPressed: () => _showAddTask(context, isDark, t),
+              child: const Icon(Icons.add_rounded),
+            )
+          : null,
+    );
+  }
+
+  void _confirmDelete(BuildContext context, TaskModel task, String Function(String) t) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('common.confirm')),
+        content: Text('${t('common.deleteConfirm')} "${task.title}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.cancel'))),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(tasksProvider.notifier).deleteTask(task.id);
+            },
+            child: Text(t('common.delete'), style: const TextStyle(color: AppColors.destructive)),
+          ),
+        ],
       ),
     );
+  }
+
+  void _showTaskDetail(BuildContext context, TaskModel task, bool isDark, String Function(String) t) {
+    final members = ref.read(membersProvider).valueOrNull ?? [];
+    final assignee = members.where((m) => m.userId == task.assignedTo).firstOrNull;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.92,
+        minChildSize: 0.4,
+        builder: (ctx, scrollCtrl) => StatefulBuilder(
+          builder: (ctx2, setSheet) => Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.card,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.borderDark : AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      // Title row with checkbox
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          GestureDetector(
+                            onTap: () async {
+                              if (task.photoRequired && !task.completed && task.photosBefore.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(t('tasks.photoRequiredWarning'))),
+                                );
+                                return;
+                              }
+                              await ref.read(tasksProvider.notifier).toggleComplete(task.id, !task.completed);
+                              if (ctx2.mounted) Navigator.pop(ctx2);
+                            },
+                            child: Container(
+                              width: 24, height: 24, margin: const EdgeInsets.only(top: 2),
+                              decoration: BoxDecoration(
+                                color: task.completed ? AppColors.primary : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: task.completed ? AppColors.primary : (isDark ? AppColors.borderDark : AppColors.border),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: task.completed
+                                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              task.title,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 18, fontWeight: FontWeight.w700,
+                                color: isDark ? AppColors.foregroundDark : AppColors.foreground,
+                                decoration: task.completed ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Badges row
+                      Wrap(
+                        spacing: 8, runSpacing: 6,
+                        children: [
+                          if (task.photoRequired)
+                            _Badge(
+                              icon: Icons.camera_alt_outlined,
+                              label: t('tasks.photoRequired'),
+                              color: AppColors.accent,
+                            ),
+                          if (task.recurring != null)
+                            _Badge(
+                              icon: Icons.repeat_rounded,
+                              label: _recurringLabel(task.recurring!, t),
+                              color: AppColors.primary,
+                            ),
+                          if (task.dueDate != null)
+                            _Badge(
+                              icon: Icons.calendar_today_outlined,
+                              label: _formatDate(task.dueDate!),
+                              color: AppColors.mutedForeground,
+                            ),
+                        ],
+                      ),
+
+                      // Description
+                      if (task.description != null && task.description!.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          task.description!,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+
+                      // Assignee
+                      if (assignee != null) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            MemberAvatar(name: assignee.name, color: assignee.color, radius: 14),
+                            const SizedBox(width: 8),
+                            Text(assignee.name,
+                                style: GoogleFonts.inter(fontSize: 13, color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      const SizedBox(height: 12),
+
+                      // Photos Before
+                      _PhotoSection(
+                        label: t('tasks.photosBefore'),
+                        photos: task.photosBefore,
+                        isDark: isDark,
+                        onAdd: () async {
+                          final file = await _pickImage();
+                          if (file != null) {
+                            await ref.read(tasksProvider.notifier).addPhoto(task.id, file, isBefore: true);
+                            if (ctx2.mounted) Navigator.pop(ctx2);
+                          }
+                        },
+                        onRemove: (url) async {
+                          await ref.read(tasksProvider.notifier).removePhoto(task.id, url, isBefore: true);
+                          if (ctx2.mounted) Navigator.pop(ctx2);
+                        },
+                        t: t,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Photos After
+                      _PhotoSection(
+                        label: t('tasks.photosAfter'),
+                        photos: task.photosAfter,
+                        isDark: isDark,
+                        onAdd: () async {
+                          final file = await _pickImage();
+                          if (file != null) {
+                            await ref.read(tasksProvider.notifier).addPhoto(task.id, file, isBefore: false);
+                            if (ctx2.mounted) Navigator.pop(ctx2);
+                          }
+                        },
+                        onRemove: (url) async {
+                          await ref.read(tasksProvider.notifier).removePhoto(task.id, url, isBefore: false);
+                          if (ctx2.mounted) Navigator.pop(ctx2);
+                        },
+                        t: t,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<File?> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return null;
+    return File(picked.path);
   }
 
   void _showAddTask(BuildContext context, bool isDark, String Function(String) t) {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     String? selectedAssignee;
-    String? selectedRecurring;
+    bool photoRequired = false;
     final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
@@ -104,7 +332,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
           ),
           child: Form(
             key: formKey,
-            child: Column(
+            child: StatefulBuilder(builder: (_, setState2) => Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -115,7 +343,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 TextFormField(
                   controller: titleCtrl,
                   decoration: InputDecoration(labelText: t('common.title')),
-                  validator: (v) => v?.isEmpty == true ? 'Obrigatório' : null,
+                  validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -125,15 +353,24 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 ),
                 const SizedBox(height: 12),
                 if (members.isNotEmpty)
-                  StatefulBuilder(builder: (_, setState2) => DropdownButtonFormField<String>(
+                  DropdownButtonFormField<String>(
                     decoration: InputDecoration(labelText: t('tasks.assignedTo')),
                     items: members.map((m) => DropdownMenuItem(
                       value: m.userId,
                       child: Text(m.name),
                     )).toList(),
                     onChanged: (v) => setState2(() => selectedAssignee = v),
-                  )),
-                const SizedBox(height: 20),
+                  ),
+                const SizedBox(height: 4),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(t('tasks.photoRequired'),
+                      style: GoogleFonts.inter(fontSize: 14, color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                  value: photoRequired,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (v) => setState2(() => photoRequired = v),
+                ),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -144,8 +381,9 @@ class _TasksPageState extends ConsumerState<TasksPage>
                         title: titleCtrl.text.trim(),
                         description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
                         assignedTo: selectedAssignee,
-                        recurring: selectedRecurring,
+                        recurring: null,
                         createdBy: authState.user?.uid ?? '',
+                        photoRequired: photoRequired,
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                     },
@@ -154,7 +392,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 ),
                 const SizedBox(height: 20),
               ],
-            ),
+            )),
           ),
         );
       },
@@ -162,12 +400,22 @@ class _TasksPageState extends ConsumerState<TasksPage>
   }
 }
 
+// ── _TaskList ────────────────────────────────────────────────────────────────
+
 class _TaskList extends ConsumerWidget {
   final List<TaskModel> tasks;
   final bool isDark;
   final String Function(String) t;
+  final void Function(TaskModel)? onDelete;
+  final void Function(TaskModel) onTap;
 
-  const _TaskList({required this.tasks, required this.isDark, required this.t});
+  const _TaskList({
+    required this.tasks,
+    required this.isDark,
+    required this.t,
+    this.onDelete,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,98 +427,105 @@ class _TaskList extends ConsumerWidget {
     }
 
     final members = ref.watch(membersProvider).valueOrNull ?? [];
+    final perms = ref.watch(permissionsProvider);
+    final myRole = ref.watch(authProvider).houseMembership?.role ?? 'guest';
+    final canComplete = perms.can('tasks.complete', myRole);
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: tasks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final task = tasks[i];
-        final assignee = members.where((m) => m.userId == task.assignedTo).firstOrNull;
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () => ref.read(tasksProvider.notifier).refresh(),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: tasks.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, i) {
+          final task = tasks[i];
+          final assignee = members.where((m) => m.userId == task.assignedTo).firstOrNull;
 
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.card,
+          return InkWell(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
-          ),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => ref.read(tasksProvider.notifier)
-                    .toggleComplete(task.id, !task.completed),
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: task.completed ? AppColors.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: task.completed ? AppColors.primary : (isDark ? AppColors.borderDark : AppColors.border),
-                      width: 1.5,
+            onTap: () => onTap(task),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.cardDark : AppColors.card,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: canComplete ? () => ref.read(tasksProvider.notifier)
+                        .toggleComplete(task.id, !task.completed) : null,
+                    child: Container(
+                      width: 22, height: 22,
+                      decoration: BoxDecoration(
+                        color: task.completed ? AppColors.primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: task.completed ? AppColors.primary : (isDark ? AppColors.borderDark : AppColors.border),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: task.completed
+                          ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                          : null,
                     ),
                   ),
-                  child: task.completed
-                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: task.completed
-                            ? (isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)
-                            : (isDark ? AppColors.foregroundDark : AppColors.foreground),
-                        decoration: task.completed ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                    if (task.dueDate != null || assignee != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (assignee != null) ...[
-                            MemberAvatar(name: assignee.name, color: assignee.color, radius: 10),
-                            const SizedBox(width: 4),
-                            Text(
-                              assignee.name,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          if (task.dueDate != null)
-                            Text(
-                              _formatDate(task.dueDate!),
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
-                              ),
-                            ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          style: GoogleFonts.inter(
+                            fontSize: 14, fontWeight: FontWeight.w500,
+                            color: task.completed
+                                ? (isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)
+                                : (isDark ? AppColors.foregroundDark : AppColors.foreground),
+                            decoration: task.completed ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                        if (task.dueDate != null || assignee != null || task.photoRequired) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              if (assignee != null) ...[
+                                MemberAvatar(name: assignee.name, color: assignee.color, radius: 10),
+                                const SizedBox(width: 4),
+                                Text(assignee.name, style: GoogleFonts.inter(fontSize: 11, color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                                const SizedBox(width: 8),
+                              ],
+                              if (task.dueDate != null)
+                                Text(_formatDate(task.dueDate!), style: GoogleFonts.inter(fontSize: 11, color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                              if (task.photoRequired) ...[
+                                const SizedBox(width: 6),
+                                Icon(Icons.camera_alt_outlined, size: 13, color: AppColors.accent),
+                              ],
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
-                  ],
-                ),
+                      ],
+                    ),
+                  ),
+                  if (task.photosBefore.isNotEmpty || task.photosAfter.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(Icons.photo_library_outlined, size: 16, color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                    ),
+                  if (onDelete != null)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.destructive),
+                      onPressed: () => onDelete!(task),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.destructive),
-                onPressed: () => ref.read(tasksProvider.notifier).deleteTask(task.id),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -281,5 +536,146 @@ class _TaskList extends ConsumerWidget {
     } catch (_) {
       return date;
     }
+  }
+}
+
+// ── _PhotoSection ────────────────────────────────────────────────────────────
+
+class _PhotoSection extends StatelessWidget {
+  const _PhotoSection({
+    required this.label,
+    required this.photos,
+    required this.isDark,
+    required this.onAdd,
+    required this.onRemove,
+    required this.t,
+  });
+
+  final String label;
+  final List<String> photos;
+  final bool isDark;
+  final VoidCallback onAdd;
+  final void Function(String url) onRemove;
+  final String Function(String) t;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w600, fontSize: 14,
+                    color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+            TextButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+              label: Text(t('tasks.addPhoto'), style: GoogleFonts.inter(fontSize: 12)),
+              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            ),
+          ],
+        ),
+        if (photos.isEmpty)
+          Text(t('tasks.noPhotos'),
+              style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground))
+        else
+          SizedBox(
+            height: 100,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: photos.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (ctx, i) {
+                final url = photos[i];
+                return Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: url,
+                        width: 100, height: 100,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          width: 100, height: 100,
+                          color: isDark ? AppColors.borderDark : AppColors.border,
+                          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          width: 100, height: 100,
+                          color: isDark ? AppColors.borderDark : AppColors.border,
+                          child: const Icon(Icons.broken_image_outlined),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 2, right: 2,
+                      child: GestureDetector(
+                        onTap: () => onRemove(url),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.icon, required this.label, required this.color});
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: GoogleFonts.inter(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatDate(String date) {
+  try {
+    final d = DateTime.parse(date);
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  } catch (_) {
+    return date;
+  }
+}
+
+String _recurringLabel(String recurring, String Function(String) t) {
+  switch (recurring) {
+    case 'daily': return t('tasks.recurring.daily');
+    case 'weekly': return t('tasks.recurring.weekly');
+    case 'monthly': return t('tasks.recurring.monthly');
+    default: return recurring;
   }
 }

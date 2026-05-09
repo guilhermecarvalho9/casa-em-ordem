@@ -8,6 +8,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../members/providers/members_provider.dart';
+import '../../permissions/providers/permissions_provider.dart';
 import '../models/bill_model.dart';
 import '../providers/bills_provider.dart';
 
@@ -38,6 +39,8 @@ class _BillsPageState extends ConsumerState<BillsPage>
   Widget build(BuildContext context) {
     final appState = ref.watch(appProvider);
     final billsAsync = ref.watch(billsProvider);
+    final perms = ref.watch(permissionsProvider);
+    final myRole = ref.watch(authProvider).houseMembership?.role ?? 'guest';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String t(String key) => AppTranslations.translate(appState.language, key);
 
@@ -49,7 +52,6 @@ class _BillsPageState extends ConsumerState<BillsPage>
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       body: Column(
         children: [
-          // Summary card
           if (billsAsync.valueOrNull?.isNotEmpty == true)
             Container(
               margin: const EdgeInsets.all(16),
@@ -109,26 +111,72 @@ class _BillsPageState extends ConsumerState<BillsPage>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _BillList(bills: pending, isDark: isDark, t: t),
-                _BillList(bills: paid, isDark: isDark, t: t),
+                _BillList(
+                  bills: pending,
+                  isDark: isDark,
+                  t: t,
+                  onEdit: perms.can('bills.add', myRole)
+                      ? (bill) => _showBillForm(context, isDark, t, editing: bill) : null,
+                  onDelete: perms.can('bills.delete', myRole)
+                      ? (bill) => _confirmDelete(context, bill, t) : null,
+                  canMarkPaid: perms.can('bills.markPaid', myRole),
+                ),
+                _BillList(
+                  bills: paid,
+                  isDark: isDark,
+                  t: t,
+                  onEdit: perms.can('bills.add', myRole)
+                      ? (bill) => _showBillForm(context, isDark, t, editing: bill) : null,
+                  onDelete: perms.can('bills.delete', myRole)
+                      ? (bill) => _confirmDelete(context, bill, t) : null,
+                  canMarkPaid: perms.can('bills.markPaid', myRole),
+                ),
               ],
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddBill(context, isDark, t),
-        child: const Icon(Icons.add_rounded),
+      floatingActionButton: perms.can('bills.add', myRole)
+          ? FloatingActionButton(
+              onPressed: () => _showBillForm(context, isDark, t),
+              child: const Icon(Icons.add_rounded),
+            )
+          : null,
+    );
+  }
+
+  void _confirmDelete(BuildContext context, BillModel bill, String Function(String) t) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('common.confirm')),
+        content: Text('${t('common.deleteConfirm')} "${bill.title}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.cancel'))),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(billsProvider.notifier).deleteBill(bill.id);
+            },
+            child: Text(t('common.delete'), style: const TextStyle(color: AppColors.destructive)),
+          ),
+        ],
       ),
     );
   }
 
-  void _showAddBill(BuildContext context, bool isDark, String Function(String) t) {
-    final titleCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
-    String selectedCategory = 'other';
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
+  void _showBillForm(BuildContext context, bool isDark, String Function(String) t, {BillModel? editing}) {
+    final titleCtrl = TextEditingController(text: editing?.title ?? '');
+    final amountCtrl = TextEditingController(
+        text: editing != null ? editing.amount.toStringAsFixed(2) : '');
+    String selectedCategory = editing?.category ?? 'other';
     final formKey = GlobalKey<FormState>();
+
+    DateTime initialDate = DateTime.now().add(const Duration(days: 7));
+    if (editing != null) {
+      final parsed = DateTime.tryParse(editing.dueDate);
+      if (parsed != null) initialDate = parsed;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -140,7 +188,10 @@ class _BillsPageState extends ConsumerState<BillsPage>
         final members = ref.read(membersProvider).valueOrNull ?? [];
         final authState = ref.read(authProvider);
         final allMemberIds = members.map((m) => m.userId).toList();
-        List<String> selectedMembers = List.from(allMemberIds);
+        List<String> selectedMembers = editing?.splitBetween.isNotEmpty == true
+            ? List.from(editing!.splitBetween)
+            : List.from(allMemberIds);
+        DateTime selectedDueDate = initialDate;
 
         return StatefulBuilder(
           builder: (_, setState2) => Padding(
@@ -155,10 +206,12 @@ class _BillsPageState extends ConsumerState<BillsPage>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t('bills.add'),
-                        style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w600, fontSize: 18,
-                            color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                    Text(
+                      editing == null ? t('bills.add') : t('common.edit'),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w600, fontSize: 18,
+                          color: isDark ? AppColors.foregroundDark : AppColors.foreground),
+                    ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: titleCtrl,
@@ -173,7 +226,32 @@ class _BillsPageState extends ConsumerState<BillsPage>
                       validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                     ),
                     const SizedBox(height: 12),
+                    // Date picker
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedDueDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) setState2(() => selectedDueDate = picked);
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: t('bills.dueDate'),
+                          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                        ),
+                        child: Text(
+                          '${selectedDueDate.day.toString().padLeft(2, '0')}/${selectedDueDate.month.toString().padLeft(2, '0')}/${selectedDueDate.year}',
+                          style: GoogleFonts.inter(fontSize: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+                      value: selectedCategory,
                       decoration: InputDecoration(labelText: t('bills.category')),
                       items: ['rent', 'utilities', 'internet', 'other']
                           .map((c) => DropdownMenuItem(value: c, child: Text(t('bills.category.$c'))))
@@ -181,7 +259,6 @@ class _BillsPageState extends ConsumerState<BillsPage>
                       onChanged: (v) => setState2(() => selectedCategory = v ?? 'other'),
                     ),
                     const SizedBox(height: 16),
-                    // Member selection
                     if (members.isNotEmpty) ...[
                       Text(t('bills.splitSelect'),
                           style: GoogleFonts.inter(
@@ -232,14 +309,26 @@ class _BillsPageState extends ConsumerState<BillsPage>
                           if (!formKey.currentState!.validate()) return;
                           final amount = double.tryParse(
                               amountCtrl.text.replaceAll(',', '.')) ?? 0;
-                          await ref.read(billsProvider.notifier).addBill(
-                            title: titleCtrl.text.trim(),
-                            amount: amount,
-                            dueDate: selectedDate.toIso8601String().split('T').first,
-                            category: selectedCategory,
-                            splitBetween: selectedMembers,
-                            createdBy: authState.user?.uid ?? '',
-                          );
+                          final dueDateStr = selectedDueDate.toIso8601String().split('T').first;
+                          if (editing == null) {
+                            await ref.read(billsProvider.notifier).addBill(
+                              title: titleCtrl.text.trim(),
+                              amount: amount,
+                              dueDate: dueDateStr,
+                              category: selectedCategory,
+                              splitBetween: selectedMembers,
+                              createdBy: authState.user?.uid ?? '',
+                            );
+                          } else {
+                            await ref.read(billsProvider.notifier).updateBill(
+                              billId: editing.id,
+                              title: titleCtrl.text.trim(),
+                              amount: amount,
+                              dueDate: dueDateStr,
+                              category: selectedCategory,
+                              splitBetween: selectedMembers,
+                            );
+                          }
                           if (ctx.mounted) Navigator.pop(ctx);
                         },
                         child: Text(t('common.save')),
@@ -261,8 +350,18 @@ class _BillList extends ConsumerWidget {
   final List<BillModel> bills;
   final bool isDark;
   final String Function(String) t;
+  final void Function(BillModel)? onEdit;
+  final void Function(BillModel)? onDelete;
+  final bool canMarkPaid;
 
-  const _BillList({required this.bills, required this.isDark, required this.t});
+  const _BillList({
+    required this.bills,
+    required this.isDark,
+    required this.t,
+    this.onEdit,
+    this.onDelete,
+    this.canMarkPaid = true,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -275,103 +374,118 @@ class _BillList extends ConsumerWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: bills.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final bill = bills[i];
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.card,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(bill.title,
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () => ref.read(billsProvider.notifier).refresh(),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: bills.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, i) {
+          final bill = bills[i];
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(bill.title,
+                              style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600, fontSize: 14,
+                                  color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                          const SizedBox(height: 2),
+                          Text(
+                            _categoryLabel(bill.category),
                             style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w600, fontSize: 14,
-                                color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
-                        const SizedBox(height: 2),
+                                fontSize: 11,
+                                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
                         Text(
-                          _categoryLabel(bill.category),
-                          style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                          'R\$ ${bill.amount.toStringAsFixed(2)}',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700, fontSize: 16,
+                              color: isDark ? AppColors.foregroundDark : AppColors.foreground),
                         ),
+                        if (bill.splitBetween.length > 1)
+                          Text(
+                            'R\$ ${bill.perPerson.toStringAsFixed(2)} ${t('bills.perPerson')}',
+                            style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                          ),
                       ],
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'R\$ ${bill.amount.toStringAsFixed(2)}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w700, fontSize: 16,
-                            color: isDark ? AppColors.foregroundDark : AppColors.foreground),
-                      ),
-                      if (bill.splitBetween.length > 1)
-                        Text(
-                          'R\$ ${bill.perPerson.toStringAsFixed(2)} ${t('bills.perPerson')}',
-                          style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  StatusBadge(
-                    label: bill.paid ? t('bills.paid') : t('bills.pending'),
-                    type: bill.paid ? BadgeType.success : BadgeType.warning,
-                  ),
-                  const Spacer(),
-                  if (!bill.paid)
-                    TextButton(
-                      onPressed: () => ref.read(billsProvider.notifier)
-                          .togglePaid(bill.id, true, paidBy: authState.user?.uid),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        minimumSize: Size.zero,
-                      ),
-                      child: Text(t('bills.markPaid'),
-                          style: GoogleFonts.inter(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
-                    )
-                  else
-                    TextButton(
-                      onPressed: () => ref.read(billsProvider.notifier).togglePaid(bill.id, false),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        minimumSize: Size.zero,
-                      ),
-                      child: Text(t('bills.markUnpaid'),
-                          style: GoogleFonts.inter(color: AppColors.mutedForeground, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    StatusBadge(
+                      label: bill.paid ? t('bills.paid') : t('bills.pending'),
+                      type: bill.paid ? BadgeType.success : BadgeType.warning,
                     ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.destructive),
-                    onPressed: () => ref.read(billsProvider.notifier).deleteBill(bill.id),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+                    const SizedBox(width: 8),
+                    if (!bill.paid) _DueDateBadge(dueDate: bill.dueDate, t: t),
+                    const Spacer(),
+                    if (canMarkPaid && !bill.paid)
+                      TextButton(
+                        onPressed: () => ref.read(billsProvider.notifier)
+                            .togglePaid(bill.id, true, paidBy: authState.user?.uid, bill: bill),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          minimumSize: Size.zero,
+                        ),
+                        child: Text(t('bills.markPaid'),
+                            style: GoogleFonts.inter(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                      )
+                    else if (canMarkPaid && bill.paid)
+                      TextButton(
+                        onPressed: () => ref.read(billsProvider.notifier).togglePaid(bill.id, false, bill: bill),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          minimumSize: Size.zero,
+                        ),
+                        child: Text(t('bills.markUnpaid'),
+                            style: GoogleFonts.inter(color: AppColors.mutedForeground, fontSize: 12)),
+                      ),
+                    if (onEdit != null)
+                      IconButton(
+                        icon: Icon(Icons.edit_outlined, size: 18,
+                            color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                        onPressed: () => onEdit!(bill),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                      ),
+                    if (onDelete != null)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.destructive),
+                        onPressed: () => onDelete!(bill),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -382,5 +496,52 @@ class _BillList extends ConsumerWidget {
       case 'internet': return t('bills.category.internet');
       default: return t('bills.category.other');
     }
+  }
+}
+
+class _DueDateBadge extends StatelessWidget {
+  final String dueDate;
+  final String Function(String) t;
+
+  const _DueDateBadge({required this.dueDate, required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    final due = DateTime.tryParse(dueDate);
+    if (due == null) return const SizedBox.shrink();
+
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final dueOnly = DateTime(due.year, due.month, due.day);
+    final diff = dueOnly.difference(todayOnly).inDays;
+
+    Color color;
+    String label;
+
+    if (diff < 0) {
+      color = AppColors.destructive;
+      label = t('bills.overdue');
+    } else if (diff == 0) {
+      color = Colors.orange;
+      label = t('bills.dueToday');
+    } else if (diff <= 3) {
+      color = Colors.orange;
+      label = '${t('bills.dueSoon')} $diff d';
+    } else {
+      color = AppColors.mutedForeground;
+      label = '${due.day.toString().padLeft(2, '0')}/${due.month.toString().padLeft(2, '0')}/${due.year}';
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.calendar_today_outlined, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: color),
+        ),
+      ],
+    );
   }
 }

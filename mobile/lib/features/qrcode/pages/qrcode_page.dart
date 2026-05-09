@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -52,7 +53,6 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
     final rules = rulesAsync.valueOrNull ?? [];
     final houseName = authState.currentHouse?.name ?? '';
 
-    // Build rules text for QR code
     final rulesText = _buildRulesText(houseName, rules.map((r) => '${r.title}\n${r.description}').toList());
 
     return Scaffold(
@@ -102,12 +102,33 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
                         separatorBuilder: (_, __) => const SizedBox(height: 16),
                         itemBuilder: (context, i) {
                           final pw = wifiPasswords[i];
-                          final qrData = 'WIFI:T:WPA;S:${pw.name};P:${pw.value};;';
+                          // Escape special chars per WiFi QR spec (;, \, ", ,, :)
+                          final ssid = _escapeWifi(pw.name);
+                          final pass = _escapeWifi(pw.value);
+                          final qrData = 'WIFI:T:WPA;S:$ssid;P:$pass;;';
                           return _QRCard(
                             title: pw.name,
                             subtitle: '••••••••',
                             qrData: qrData,
                             isDark: isDark,
+                            footer: Column(
+                              children: [
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: pw.value));
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                      content: Text(t('qrcode.passwordCopied')),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ));
+                                  },
+                                  icon: const Icon(Icons.copy_rounded, size: 14),
+                                  label: Text(t('qrcode.copyPassword'),
+                                      style: GoogleFonts.inter(fontSize: 12)),
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),
@@ -124,7 +145,7 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
                         ),
                 ),
 
-                // Rules QR code
+                // Rules — share/copy instead of QR (text QR opens Google Search on phones)
                 rules.isEmpty
                     ? EmptyState(
                         icon: Icons.rule_outlined,
@@ -133,23 +154,19 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
                     : SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _QRCard(
-                              title: t('qrcode.rules'),
-                              subtitle: '${rules.length} ${t('qrcode.ruleCount')}',
-                              qrData: rulesText,
-                              isDark: isDark,
-                              footer: Text(
-                                t('qrcode.rulesHint'),
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: isDark
-                                        ? AppColors.mutedForegroundDark
-                                        : AppColors.mutedForeground),
+                            // Share button (native share sheet — user picks Notes, WhatsApp etc.)
+                            ElevatedButton.icon(
+                              onPressed: () => Share.share(rulesText, subject: houseName.isNotEmpty ? houseName : 'Regras da Casa'),
+                              icon: const Icon(Icons.share_rounded, size: 18),
+                              label: Text(t('qrcode.shareRules'),
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 10),
                             // Copy text button
                             OutlinedButton.icon(
                               onPressed: () {
@@ -166,7 +183,7 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
                               label: Text(t('qrcode.copyText'),
                                   style: GoogleFonts.inter(fontSize: 13)),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             // Rules preview
                             Container(
                               width: double.infinity,
@@ -211,18 +228,23 @@ class _QRCodePageState extends ConsumerState<QRCodePage>
     );
   }
 
+  // Escape characters per WiFi QR code spec
+  String _escapeWifi(String value) => value
+      .replaceAll('\\', '\\\\')
+      .replaceAll(';', '\\;')
+      .replaceAll(',', '\\,')
+      .replaceAll('"', '\\"')
+      .replaceAll(':', '\\:');
+
   String _buildRulesText(String houseName, List<String> ruleTexts) {
     final buf = StringBuffer();
     buf.writeln('=== REGRAS DA CASA ===');
-    if (houseName.isNotEmpty) {
-      buf.writeln(houseName);
-    }
+    if (houseName.isNotEmpty) buf.writeln(houseName);
     buf.writeln();
     for (int i = 0; i < ruleTexts.length; i++) {
       buf.writeln('${i + 1}. ${ruleTexts[i]}');
       if (i < ruleTexts.length - 1) buf.writeln();
     }
-    // QR codes support ~4296 chars; truncate if needed
     final text = buf.toString().trim();
     if (text.length > 4000) return text.substring(0, 4000);
     return text;
@@ -268,7 +290,6 @@ class _PublicHouseQRSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        // URL display + copy button
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(

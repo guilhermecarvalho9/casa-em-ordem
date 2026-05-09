@@ -59,6 +59,19 @@ class RulesNotifier extends StateNotifier<AsyncValue<List<RuleModel>>> {
     }
   }
 
+  Future<String?> updateRule({
+    required String ruleId,
+    required String title,
+    required String description,
+  }) async {
+    try {
+      await _col.doc(ruleId).update({'title': title, 'description': description});
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> deleteRule(String ruleId) async {
     try {
       await _col.doc(ruleId).delete();
@@ -66,6 +79,13 @@ class RulesNotifier extends StateNotifier<AsyncValue<List<RuleModel>>> {
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<void> refresh() async {
+    _sub?.cancel();
+    _sub = null;
+    _subscribe();
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 }
 
