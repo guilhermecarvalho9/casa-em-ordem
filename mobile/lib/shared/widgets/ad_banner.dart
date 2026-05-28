@@ -15,9 +15,8 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   BannerAd? _ad;
   bool _loaded = false;
 
-  // Test IDs — replace with real IDs before publishing
-  static const _androidBannerId = 'ca-app-pub-3940256099942544/6300978111';
-  static const _iosBannerId = 'ca-app-pub-3940256099942544/2934735716';
+  static const _androidBannerId = 'ca-app-pub-8684604729751875/9321213591';
+  static const _iosBannerId = 'ca-app-pub-8684604729751875/9931587682';
 
   @override
   void initState() {

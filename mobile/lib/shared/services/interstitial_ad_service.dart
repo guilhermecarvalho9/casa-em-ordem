@@ -5,9 +5,8 @@ class InterstitialAdService {
   static InterstitialAd? _ad;
   static bool _shown = false; // only once per session
 
-  // Test IDs — replace with real IDs before publishing
-  static const _androidId = 'ca-app-pub-3940256099942544/1033173712';
-  static const _iosId = 'ca-app-pub-3940256099942544/4411468910';
+  static const _androidId = 'ca-app-pub-8684604729751875/8008131928';
+  static const _iosId = 'ca-app-pub-8684604729751875/5381968585';
 
   static void load() {
     if (_shown) return;
