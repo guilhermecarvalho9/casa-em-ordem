@@ -19,16 +19,32 @@ import '../../address/pages/address_page.dart';
 import '../../settings/pages/settings_page.dart';
 import '../../qrcode/pages/qrcode_page.dart';
 import '../../inventory/pages/inventory_page.dart';
-import '../../nf/pages/nf_page.dart';
 import '../../../shared/widgets/ad_banner.dart';
+import '../../../shared/services/interstitial_ad_service.dart';
+import '../../pro/providers/pro_provider.dart';
 
 final currentPageProvider = StateProvider<String>((ref) => 'dashboard');
 
-class MainScaffold extends ConsumerWidget {
+class MainScaffold extends ConsumerStatefulWidget {
   const MainScaffold({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
+}
+
+class _MainScaffoldState extends ConsumerState<MainScaffold> {
+  @override
+  void initState() {
+    super.initState();
+    InterstitialAdService.load();
+    // Show after first frame so the app is fully rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      InterstitialAdService.showIfReady();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentPage = ref.watch(currentPageProvider);
     final appState = ref.watch(appProvider);
     final t = (String key) => AppTranslations.translate(appState.language, key);
@@ -53,8 +69,8 @@ class MainScaffold extends ConsumerWidget {
           ),
         ),
         actions: [
-          _buildThemeToggle(ref, isDark),
-          _buildLanguageToggle(ref, appState.language, isDark),
+          _buildThemeToggle(isDark),
+          _buildLanguageToggle(appState.language, isDark),
           const SizedBox(width: 8),
         ],
         elevation: 0,
@@ -87,13 +103,12 @@ class MainScaffold extends ConsumerWidget {
       case 'damaged': return const DamagedPage();
       case 'qrcode': return const QRCodePage();
       case 'inventory': return const InventoryPage();
-      case 'nf': return const NfPage();
       case 'settings': return const SettingsPage();
       default: return const DashboardPage();
     }
   }
 
-  Widget _buildThemeToggle(WidgetRef ref, bool isDark) {
+  Widget _buildThemeToggle(bool isDark) {
     return IconButton(
       icon: Icon(
         isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
@@ -104,7 +119,7 @@ class MainScaffold extends ConsumerWidget {
     );
   }
 
-  Widget _buildLanguageToggle(WidgetRef ref, String lang, bool isDark) {
+  Widget _buildLanguageToggle(String lang, bool isDark) {
     return GestureDetector(
       onTap: () => ref.read(appProvider.notifier).setLanguage(lang == 'pt' ? 'en' : 'pt'),
       child: Container(
@@ -135,6 +150,7 @@ class _AppDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appProvider);
     final authState = ref.watch(authProvider);
+    final isPro = ref.watch(proProvider).valueOrNull ?? false;
     final t = (String key) => AppTranslations.translate(appState.language, key);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -152,7 +168,6 @@ class _AppDrawer extends ConsumerWidget {
       _NavItem('damaged', Icons.warning_rounded, t('nav.damaged')),
       _NavItem('inventory', Icons.inventory_2_rounded, t('nav.inventory')),
       _NavItem('qrcode', Icons.qr_code_rounded, t('nav.qrcode')),
-      _NavItem('nf', Icons.receipt_long_rounded, t('nav.nf')),
     ];
 
     return Drawer(
@@ -184,13 +199,35 @@ class _AppDrawer extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        t('app.title'),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: isDark ? AppColors.foregroundDark : AppColors.foreground,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            t('app.title'),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: isDark ? AppColors.foregroundDark : AppColors.foreground,
+                            ),
+                          ),
+                          if (isPro) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFB800),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'PRO',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       if (authState.currentHouse != null)
                         Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -270,6 +271,46 @@ class _PasswordCard extends StatefulWidget {
 class _PasswordCardState extends State<_PasswordCard> {
   bool _visible = false;
 
+  void _showWifiQr(BuildContext context) {
+    // Standard WiFi QR format recognised by Android and iOS camera
+    final qrData =
+        'WIFI:T:WPA;S:${widget.password.name};P:${widget.password.value};;';
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.password.name,
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700, fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Aponte a câmera para conectar ao WiFi',
+                style: GoogleFonts.inter(
+                    fontSize: 12, color: AppColors.mutedForeground),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              QrImageView(data: qrData, size: 220),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Fechar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final icon = widget.password.category == 'wifi'
@@ -325,6 +366,12 @@ class _PasswordCardState extends State<_PasswordCard> {
             onPressed: () => setState(() => _visible = !_visible),
             visualDensity: VisualDensity.compact,
           ),
+          if (widget.password.category == 'wifi')
+            IconButton(
+              icon: const Icon(Icons.qr_code_rounded, size: 18, color: AppColors.primary),
+              onPressed: () => _showWifiQr(context),
+              visualDensity: VisualDensity.compact,
+            ),
           IconButton(
             icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primary),
             onPressed: () {

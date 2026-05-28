@@ -255,6 +255,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final houseId = houseDoc.id;
       final today = DateTime.now().toIso8601String().substring(0, 10);
 
+      // Enforce free-plan member limit of 3
+      final isPro = houseDoc.data()['isPro'] as bool? ?? false;
+      if (!isPro) {
+        final membersSnap = await _db
+            .collection('houses')
+            .doc(houseId)
+            .collection('members')
+            .get();
+        if (membersSnap.docs.length >= 3) {
+          return 'Limite de 3 membros atingido. Faça upgrade para o plano PRO.';
+        }
+      }
+
       final batch = _db.batch();
 
       batch.set(houseDoc.reference.collection('members').doc(uid), {
