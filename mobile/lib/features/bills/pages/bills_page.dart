@@ -442,7 +442,12 @@ class _BillList extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
                     if (!bill.paid) _DueDateBadge(dueDate: bill.dueDate, t: t),
-                    const Spacer(),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
                     if (canMarkPaid && !bill.paid)
                       TextButton(
                         onPressed: () => ref.read(billsProvider.notifier)

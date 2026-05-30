@@ -1,4 +1,4 @@
-package com.casaemorden.casa_em_ordem_mobile
+package br.com.hg2tecnologia.homio
 
 import io.flutter.embedding.android.FlutterActivity
 

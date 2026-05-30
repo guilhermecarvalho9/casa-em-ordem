@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.casaemorden.casa_em_ordem_mobile"
+    namespace = "br.com.hg2tecnologia.homio"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -25,7 +25,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.casaemorden.casa_em_ordem_mobile"
+        applicationId = "br.com.hg2tecnologia.homio"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
