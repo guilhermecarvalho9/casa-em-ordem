@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.casaemorden.casaEmOrdemMobile</string>
+	<string>br.com.hg2tecnologia.homio</string>
 	<key>PROJECT_ID</key>
 	<string>projeto-homio</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:875447160502:ios:3025a5512f0257da002017</string>
+	<string>1:875447160502:ios:623a7b9c014daff8002017</string>
 </dict>
 </plist>

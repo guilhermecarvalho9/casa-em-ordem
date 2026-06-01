@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:875447160502:android:5c87c8156dc29352002017",
+        "mobilesdk_app_id": "1:875447160502:android:1f9ebe0d89ec5b46002017",
         "android_client_info": {
-          "package_name": "com.casaemorden.casa_em_ordem_mobile"
+          "package_name": "br.com.hg2tecnologia.homio"
         }
       },
       "oauth_client": [],
