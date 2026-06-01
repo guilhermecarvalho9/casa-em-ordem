@@ -8,9 +8,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
 val keyPropertiesFile = rootProject.file("key.properties")
-val keyProperties = java.util.Properties()
-keyProperties.load(java.io.FileInputStream(keyPropertiesFile))
+val keyProperties = Properties()
+keyProperties.load(FileInputStream(keyPropertiesFile))
 
 android {
     namespace = "br.com.hg2tecnologia.homio"
@@ -29,10 +32,10 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keyProperties["keyAlias"] as String
-            keyPassword = keyProperties["keyPassword"] as String
-            storeFile = file("${keyProperties["storeFile"]}")
-            storePassword = keyProperties["storePassword"] as String
+            keyAlias = keyProperties["keyAlias"].toString()
+            keyPassword = keyProperties["keyPassword"].toString()
+            storeFile = file(keyProperties["storeFile"].toString())
+            storePassword = keyProperties["storePassword"].toString()
         }
     }
 
