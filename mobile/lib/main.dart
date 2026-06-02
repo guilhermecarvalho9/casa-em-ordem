@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/version_check_service.dart';
 import 'core/services/notification_service.dart';
+import 'shared/services/purchase_service.dart';
 import 'features/bills/providers/bills_provider.dart';
 import 'features/app/providers/app_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -23,6 +24,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   MobileAds.instance.initialize();
+  await PurchaseService.instance.init();
   await initializeDateFormatting('pt_BR');
   await initializeDateFormatting('en_US');
   await NotificationService.instance.init();

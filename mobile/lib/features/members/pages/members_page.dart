@@ -9,6 +9,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../pro/providers/pro_provider.dart';
+import '../../pro/pages/pro_paywall_page.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
 
@@ -332,28 +333,8 @@ class MembersPage extends ConsumerWidget {
   }
 
   void _showProGate(BuildContext context, String Function(String) t, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFB800), size: 22),
-            const SizedBox(width: 8),
-            Text('Plano PRO', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-          ],
-        ),
-        content: Text(
-          'Sua casa já tem 3 membros, que é o limite do plano gratuito.\n\nFaça upgrade para o Homio PRO e adicione membros ilimitados!',
-          style: GoogleFonts.inter(fontSize: 13),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.cancel'))),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx), // TODO: abrir fluxo de compra PRO
-            child: const Text('Ver Plano PRO'),
-          ),
-        ],
-      ),
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ProPaywallPage()),
     );
   }
 
