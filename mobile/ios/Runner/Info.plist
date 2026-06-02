@@ -51,6 +51,8 @@
 	<string>ca-app-pub-8684604729751875~6265016860</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Este identificador será usado para exibir anúncios personalizados.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
