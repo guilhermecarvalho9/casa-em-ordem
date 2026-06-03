@@ -47,6 +47,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Câmera necessária para escanear QR Code de Nota Fiscal.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Acesso à galeria necessário para adicionar fotos ao app.</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-8684604729751875~6265016860</string>
 	<key>NSUserTrackingUsageDescription</key>
