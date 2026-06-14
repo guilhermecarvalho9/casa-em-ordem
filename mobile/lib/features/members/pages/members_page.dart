@@ -10,6 +10,7 @@ import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../pro/providers/pro_provider.dart';
 import '../../pro/pages/pro_paywall_page.dart';
+import '../../../shared/utils/country_data.dart';
 import '../models/member_model.dart';
 import '../providers/members_provider.dart';
 
@@ -460,6 +461,13 @@ class _MemberCard extends StatelessWidget {
                         color: isDark ? AppColors.foregroundDark : AppColors.foreground,
                       ),
                     ),
+                    if (member.countryCode != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        flagFromCode(member.countryCode) ?? '',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
                     if (isCurrentUser) ...[
                       const SizedBox(width: 6),
                       StatusBadge(label: t('members.you'), type: BadgeType.info),

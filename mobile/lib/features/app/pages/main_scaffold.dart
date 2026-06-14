@@ -20,7 +20,9 @@ import '../../settings/pages/settings_page.dart';
 import '../../qrcode/pages/qrcode_page.dart';
 import '../../inventory/pages/inventory_page.dart';
 import '../../../shared/widgets/ad_banner.dart';
+import '../../../shared/widgets/update_dialog.dart';
 import '../../../shared/services/interstitial_ad_service.dart';
+import '../../../shared/services/version_service.dart';
 import '../../pro/providers/pro_provider.dart';
 
 final currentPageProvider = StateProvider<String>((ref) => 'dashboard');
@@ -37,10 +39,22 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   void initState() {
     super.initState();
     InterstitialAdService.load();
-    // Show after first frame so the app is fully rendered
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      InterstitialAdService.showIfReady();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initOnStart());
+  }
+
+  Future<void> _initOnStart() async {
+    await _checkVersion();
+    if (!mounted) return;
+    final isPro = ref.read(proProvider).valueOrNull ?? false;
+    InterstitialAdService.showIfReady(isPro: isPro);
+  }
+
+  Future<void> _checkVersion() async {
+    if (!mounted) return;
+    final result = await VersionService.check();
+    if (result.needsUpdate && mounted) {
+      await UpdateDialog.show(context, result.storeUrl);
+    }
   }
 
   @override

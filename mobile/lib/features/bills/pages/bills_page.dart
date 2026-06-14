@@ -9,6 +9,8 @@ import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../members/providers/members_provider.dart';
 import '../../permissions/providers/permissions_provider.dart';
+import '../../../shared/services/interstitial_ad_service.dart';
+import '../../pro/providers/pro_provider.dart';
 import '../models/bill_model.dart';
 import '../providers/bills_provider.dart';
 
@@ -193,6 +195,7 @@ class _BillsPageState extends ConsumerState<BillsPage>
             : List.from(allMemberIds);
         DateTime selectedDueDate = initialDate;
 
+        bool saving = false;
         return StatefulBuilder(
           builder: (_, setState2) => Padding(
             padding: EdgeInsets.only(
@@ -230,7 +233,7 @@ class _BillsPageState extends ConsumerState<BillsPage>
                     InkWell(
                       onTap: () async {
                         final picked = await showDatePicker(
-                          context: ctx,
+                          context: context,
                           initialDate: selectedDueDate,
                           firstDate: DateTime(2020),
                           lastDate: DateTime(2100),
@@ -305,8 +308,9 @@ class _BillsPageState extends ConsumerState<BillsPage>
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: () async {
+                        onPressed: saving ? null : () async {
                           if (!formKey.currentState!.validate()) return;
+                          setState2(() => saving = true);
                           final amount = double.tryParse(
                               amountCtrl.text.replaceAll(',', '.')) ?? 0;
                           final dueDateStr = selectedDueDate.toIso8601String().split('T').first;
@@ -330,8 +334,15 @@ class _BillsPageState extends ConsumerState<BillsPage>
                             );
                           }
                           if (ctx.mounted) Navigator.pop(ctx);
+                          InterstitialAdService.showIfReady(
+                              isPro: ref.read(proProvider).valueOrNull ?? false);
                         },
-                        child: Text(t('common.save')),
+                        child: saving
+                            ? const SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : Text(t('common.save')),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -450,8 +461,12 @@ class _BillList extends ConsumerWidget {
                   children: [
                     if (canMarkPaid && !bill.paid)
                       TextButton(
-                        onPressed: () => ref.read(billsProvider.notifier)
-                            .togglePaid(bill.id, true, paidBy: authState.user?.uid, bill: bill),
+                        onPressed: () async {
+                          final isPro = ref.read(proProvider).valueOrNull ?? false;
+                          await ref.read(billsProvider.notifier)
+                              .togglePaid(bill.id, true, paidBy: authState.user?.uid, bill: bill);
+                          InterstitialAdService.showIfReady(isPro: isPro);
+                        },
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                           minimumSize: Size.zero,

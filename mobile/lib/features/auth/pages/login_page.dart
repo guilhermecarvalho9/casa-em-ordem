@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/country_data.dart';
 import '../providers/auth_provider.dart';
 
 enum _AuthMode { login, register, forgot }
@@ -19,6 +20,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
+  CountryData? _selectedCountry;
+  bool _countryError = false;
   bool _loading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -48,10 +51,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         error = await auth.signIn(_emailCtrl.text.trim(), _passwordCtrl.text);
         break;
       case _AuthMode.register:
+        if (_selectedCountry == null) {
+          setState(() {
+            _loading = false;
+            _countryError = true;
+          });
+          return;
+        }
         error = await auth.signUp(
           _emailCtrl.text.trim(),
           _passwordCtrl.text,
           _nameCtrl.text.trim(),
+          _selectedCountry!.code,
         );
         if (error == null) {
           setState(() {
@@ -149,6 +160,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             validator: (v) =>
                                 v == null || v.isEmpty ? 'Nome obrigatório' : null,
                           ),
+                          const SizedBox(height: 16),
+                          _buildCountryPicker(isDark),
                           const SizedBox(height: 16),
                         ],
                         _buildTextField(
@@ -362,6 +375,121 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCountryPicker(bool isDark) {
+    final borderColor = _countryError
+        ? AppColors.destructive
+        : (isDark ? AppColors.borderDark : AppColors.border);
+    return GestureDetector(
+      onTap: () => _showCountrySheet(isDark),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.secondaryDark : AppColors.secondary,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.flag_outlined,
+                size: 18,
+                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _selectedCountry == null
+                  ? Text(
+                      'País *',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                      ),
+                    )
+                  : Text(
+                      '${_selectedCountry!.flag}  ${_selectedCountry!.name}',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: isDark ? AppColors.foregroundDark : AppColors.foreground,
+                      ),
+                    ),
+            ),
+            Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20,
+                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCountrySheet(bool isDark) {
+    final searchCtrl = TextEditingController();
+    var filtered = [...kCountries];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? AppColors.cardDark : AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setSheet) => SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.7,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.borderDark : AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: TextField(
+                  controller: searchCtrl,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar país...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onChanged: (q) {
+                    setSheet(() {
+                      filtered = kCountries
+                          .where((c) => c.name.toLowerCase().contains(q.toLowerCase()))
+                          .toList();
+                    });
+                  },
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final country = filtered[i];
+                    return ListTile(
+                      leading: Text(country.flag, style: const TextStyle(fontSize: 24)),
+                      title: Text(country.name, style: GoogleFonts.inter(fontSize: 14)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _selectedCountry = country;
+                          _countryError = false;
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),

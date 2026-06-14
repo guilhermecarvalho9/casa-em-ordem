@@ -143,7 +143,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<String?> signUp(String email, String password, String name) async {
+  Future<String?> signUp(String email, String password, String name, String countryCode) async {
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
@@ -153,6 +153,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'name': name,
         'email': email,
         'color': '#2A9D90',
+        'countryCode': countryCode,
         'houseId': '',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -206,6 +207,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'entryDate': today,
         'name': state.profile?.name ?? '',
         'color': state.profile?.color ?? '#2A9D90',
+        if (state.profile?.countryCode != null) 'countryCode': state.profile!.countryCode,
       });
 
       batch.update(_db.collection('users').doc(uid), {
@@ -276,6 +278,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'entryDate': today,
         'name': state.profile?.name ?? '',
         'color': state.profile?.color ?? '#2A9D90',
+        if (state.profile?.countryCode != null) 'countryCode': state.profile!.countryCode,
       });
 
       batch.update(_db.collection('users').doc(uid), {
@@ -307,23 +310,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (uid != null) await _fetchHouseMembership(uid);
   }
 
-  Future<void> updateProfile({String? name}) async {
+  Future<void> updateProfile({String? name, String? countryCode}) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
     try {
       final updates = <String, dynamic>{};
       if (name != null) updates['name'] = name;
+      if (countryCode != null) updates['countryCode'] = countryCode;
 
       await _db.collection('users').doc(uid).update(updates);
 
-      // Also update name in house member doc for denormalization
-      if (name != null && state.currentHouse != null) {
+      final memberUpdates = <String, dynamic>{};
+      if (name != null) memberUpdates['name'] = name;
+      if (countryCode != null) memberUpdates['countryCode'] = countryCode;
+
+      if (memberUpdates.isNotEmpty && state.currentHouse != null) {
         await _db
             .collection('houses')
             .doc(state.currentHouse!.id)
             .collection('members')
             .doc(uid)
-            .update({'name': name});
+            .update(memberUpdates);
       }
 
       await _fetchProfile(uid);

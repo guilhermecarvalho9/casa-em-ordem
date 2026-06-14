@@ -3,12 +3,14 @@ class UserProfile {
   final String name;
   final String? avatarUrl;
   final String color;
+  final String? countryCode;
 
   const UserProfile({
     required this.id,
     required this.name,
     this.avatarUrl,
     required this.color,
+    this.countryCode,
   });
 
   factory UserProfile.fromMap(String id, Map<String, dynamic> map) {
@@ -17,6 +19,7 @@ class UserProfile {
       name: map['name'] as String? ?? '',
       avatarUrl: map['avatarUrl'] as String?,
       color: map['color'] as String? ?? '#2A9D90',
+      countryCode: map['countryCode'] as String?,
     );
   }
 
@@ -24,14 +27,16 @@ class UserProfile {
     'name': name,
     'color': color,
     if (avatarUrl != null) 'avatarUrl': avatarUrl,
+    if (countryCode != null) 'countryCode': countryCode,
   };
 
-  UserProfile copyWith({String? name, String? avatarUrl, String? color}) {
+  UserProfile copyWith({String? name, String? avatarUrl, String? color, String? countryCode}) {
     return UserProfile(
       id: id,
       name: name ?? this.name,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       color: color ?? this.color,
+      countryCode: countryCode ?? this.countryCode,
     );
   }
 }

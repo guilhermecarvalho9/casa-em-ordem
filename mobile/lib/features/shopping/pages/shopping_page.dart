@@ -11,6 +11,8 @@ import '../../members/models/member_model.dart';
 import '../../members/providers/members_provider.dart';
 import '../../permissions/providers/permissions_provider.dart';
 import '../models/shopping_model.dart';
+import '../../../shared/services/interstitial_ad_service.dart';
+import '../../pro/providers/pro_provider.dart';
 import '../models/purchase_model.dart';
 import '../providers/shopping_provider.dart';
 import '../providers/purchases_provider.dart';
@@ -1191,7 +1193,9 @@ class _ItemFormSheetState extends ConsumerState<_ItemFormSheet> {
                                 );
                           }
                           if (!mounted) return;
+                          final isPro = ref.read(proProvider).valueOrNull ?? false;
                           nav.pop();
+                          InterstitialAdService.showIfReady(isPro: isPro);
                         },
                   child: _loading
                       ? const SizedBox(

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
+import '../../../shared/utils/country_data.dart';
 import '../../../shared/widgets/member_avatar.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -20,6 +21,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late TextEditingController _nameCtrl;
+  CountryData? _selectedCountry;
   bool _editing = false;
   bool _loadingName = false;
   bool _loadingAvatar = false;
@@ -35,6 +37,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     super.initState();
     final auth = ref.read(authProvider);
     _nameCtrl = TextEditingController(text: auth.profile?.name ?? '');
+    _selectedCountry = countryByCode(auth.profile?.countryCode);
     _phoneCtrl = TextEditingController(text: auth.houseMembership?.phone ?? '');
     _emergencyContactCtrl = TextEditingController(text: auth.houseMembership?.emergencyContact ?? '');
     _emergencyPhoneCtrl = TextEditingController(text: auth.houseMembership?.emergencyPhone ?? '');
@@ -77,6 +80,73 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(err)));
     }
+  }
+
+  void _showCountrySheet(bool isDark) {
+    final searchCtrl = TextEditingController();
+    var filtered = [...kCountries];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? AppColors.cardDark : AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setSheet) => SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.7,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.borderDark : AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: TextField(
+                  controller: searchCtrl,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar país...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onChanged: (q) {
+                    setSheet(() {
+                      filtered = kCountries
+                          .where((c) => c.name.toLowerCase().contains(q.toLowerCase()))
+                          .toList();
+                    });
+                  },
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final country = filtered[i];
+                    return ListTile(
+                      leading: Text(country.flag, style: const TextStyle(fontSize: 24)),
+                      title: Text(country.name, style: GoogleFonts.inter(fontSize: 14)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() => _selectedCountry = country);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showAvatarSheet(BuildContext context, String currentColor, String Function(String) t) {
@@ -324,6 +394,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 setState(() => _loadingName = true);
                                 await ref.read(authProvider.notifier).updateProfile(
                                       name: _nameCtrl.text.trim(),
+                                      countryCode: _selectedCountry?.code,
                                     );
                                 if (mounted) {
                                   setState(() {
@@ -344,17 +415,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (_editing)
+                  if (_editing) ...[
                     TextField(
                       controller: _nameCtrl,
                       decoration: InputDecoration(labelText: t('profile.name')),
-                    )
-                  else
+                    ),
+                    const SizedBox(height: 12),
+                    _CountryPickerField(
+                      selected: _selectedCountry,
+                      isDark: isDark,
+                      onTap: () => _showCountrySheet(isDark),
+                    ),
+                  ] else ...[
                     _InfoRow(
                       label: t('profile.name'),
                       value: profile?.name ?? '-',
                       isDark: isDark,
                     ),
+                    _InfoRow(
+                      label: 'País',
+                      value: _selectedCountry != null
+                          ? '${_selectedCountry!.flag}  ${_selectedCountry!.name}'
+                          : '-',
+                      isDark: isDark,
+                    ),
+                  ],
                   if (_loadingName) ...[
                     const SizedBox(height: 8),
                     const LinearProgressIndicator(),
@@ -499,6 +584,44 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryPickerField extends StatelessWidget {
+  final CountryData? selected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _CountryPickerField({required this.selected, required this.isDark, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: selected == null
+                  ? Text('País (opcional)',
+                      style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground))
+                  : Text('${selected!.flag}  ${selected!.name}',
+                      style: GoogleFonts.inter(fontSize: 14)),
+            ),
+            Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20,
+                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
           ],
         ),
       ),

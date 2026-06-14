@@ -13,6 +13,7 @@ class MemberModel {
   final String? phone;
   final String? emergencyContact;
   final String? emergencyPhone;
+  final String? countryCode;
 
   const MemberModel({
     required this.id,
@@ -27,6 +28,7 @@ class MemberModel {
     this.phone,
     this.emergencyContact,
     this.emergencyPhone,
+    this.countryCode,
   });
 
   factory MemberModel.fromMap(String memberId, String houseId, Map<String, dynamic> map) {
@@ -45,6 +47,7 @@ class MemberModel {
       phone: map['phone'] as String?,
       emergencyContact: map['emergencyContact'] as String?,
       emergencyPhone: map['emergencyPhone'] as String?,
+      countryCode: map['countryCode'] as String?,
     );
   }
 
