@@ -7,6 +7,8 @@ import '../../../core/l10n/translations.dart';
 import '../../app/providers/app_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../permissions/pages/permissions_page.dart';
+import '../../pro/providers/pro_provider.dart';
+import '../../pro/pages/pro_paywall_page.dart';
 
 const _appVersion = '1.0.0';
 
@@ -17,6 +19,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appProvider);
     final authState = ref.watch(authProvider);
+    final isPro = ref.watch(proProvider).valueOrNull ?? false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String t(String key) => AppTranslations.translate(appState.language, key);
 
@@ -164,6 +167,68 @@ class SettingsPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
           ],
+
+          // Subscription
+          _SectionTitle(title: 'Assinatura', isDark: isDark),
+          const SizedBox(height: 8),
+          _SettingsCard(
+            isDark: isDark,
+            children: [
+              ListTile(
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB800).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.workspace_premium_rounded,
+                      color: Color(0xFFFFB800), size: 18),
+                ),
+                title: Text(
+                  isPro ? 'Homio PRO ativo' : 'Plano Free',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isPro
+                        ? const Color(0xFFFFB800)
+                        : (isDark ? AppColors.foregroundDark : AppColors.foreground),
+                  ),
+                ),
+                subtitle: Text(
+                  isPro
+                      ? 'Sem anúncios • Membros ilimitados'
+                      : 'Máx. 3 membros • Com anúncios',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                  ),
+                ),
+                trailing: isPro
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB800).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'PRO',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFFFB800),
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.chevron_right_rounded, size: 18),
+                dense: true,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProPaywallPage()),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
           // Account
           _SectionTitle(title: t('settings.account'), isDark: isDark),

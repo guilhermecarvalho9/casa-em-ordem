@@ -24,6 +24,7 @@ import '../../../shared/widgets/update_dialog.dart';
 import '../../../shared/services/interstitial_ad_service.dart';
 import '../../../shared/services/version_service.dart';
 import '../../pro/providers/pro_provider.dart';
+import '../../pro/pages/pro_paywall_page.dart';
 
 final currentPageProvider = StateProvider<String>((ref) => 'dashboard');
 
@@ -279,6 +280,62 @@ class _AppDrawer extends ConsumerWidget {
               }).toList(),
             ),
           ),
+
+          // PRO upgrade banner (free users only)
+          if (!isPro)
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProPaywallPage()),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1A2540), Color(0xFF0F1729)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFB800).withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.workspace_premium_rounded,
+                        color: Color(0xFFFFB800), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Seja PRO',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFFFB800),
+                            ),
+                          ),
+                          Text(
+                            'Remova anúncios e desbloqueie tudo',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded,
+                        color: Color(0xFFFFB800), size: 18),
+                  ],
+                ),
+              ),
+            ),
 
           // Bottom section
           Container(
