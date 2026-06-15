@@ -197,7 +197,7 @@ class SettingsPage extends ConsumerWidget {
                 subtitle: Text(
                   isPro
                       ? 'Sem anúncios • Membros ilimitados'
-                      : 'Máx. 3 membros • Com anúncios',
+                      : 'Máx. 2 membros • Com anúncios',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,

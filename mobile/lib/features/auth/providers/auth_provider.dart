@@ -198,6 +198,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'name': name,
         if (normalizedAddress != null) 'address': normalizedAddress,
         'inviteCode': inviteCode,
+        'memberCount': 1,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -257,16 +258,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final houseId = houseDoc.id;
       final today = DateTime.now().toIso8601String().substring(0, 10);
 
-      // Enforce free-plan member limit of 3
+      // Enforce free-plan member limit of 2 using memberCount field (no extra query needed)
       final isPro = houseDoc.data()['isPro'] as bool? ?? false;
       if (!isPro) {
-        final membersSnap = await _db
-            .collection('houses')
-            .doc(houseId)
-            .collection('members')
-            .get();
-        if (membersSnap.docs.length >= 3) {
-          return 'Limite de 3 membros atingido. Faça upgrade para o plano PRO.';
+        final memberCount = houseDoc.data()['memberCount'] as int? ?? 0;
+        if (memberCount >= 2) {
+          return 'Limite de 2 membros atingido. Faça upgrade para o plano PRO.';
         }
       }
 
@@ -283,6 +280,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       batch.update(_db.collection('users').doc(uid), {
         'houseId': houseId,
+      });
+
+      batch.update(houseDoc.reference, {
+        'memberCount': FieldValue.increment(1),
       });
 
       await batch.commit();

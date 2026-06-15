@@ -67,7 +67,7 @@ class MembersPage extends ConsumerWidget {
           ? FloatingActionButton(
               onPressed: () {
                 final memberCount = membersAsync.valueOrNull?.length ?? 0;
-                if (!isPro && memberCount >= 3) {
+                if (!isPro && memberCount >= 2) {
                   _showProGate(context, t, isDark);
                 } else {
                   _showInviteCode(context, authState.currentHouse?.inviteCode ?? '', isDark, t);
