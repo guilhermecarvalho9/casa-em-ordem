@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bill_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../shared/services/house_notification_service.dart';
 
 class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
   BillsNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -47,6 +48,7 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
     required String category,
     required List<String> splitBetween,
     required String createdBy,
+    String creatorName = '',
   }) async {
     try {
       final doc = await _col.add({
@@ -65,6 +67,23 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
         billTitle: title,
         dueDate: dueDate,
       );
+      final name = creatorName.isNotEmpty ? creatorName : 'Alguém';
+      if (splitBetween.isNotEmpty) {
+        HouseNotificationService.billSplitAdded(
+          houseId: _houseId,
+          createdBy: createdBy,
+          creatorName: name,
+          billTitle: title,
+        );
+      } else {
+        HouseNotificationService.billAdded(
+          houseId: _houseId,
+          createdBy: createdBy,
+          creatorName: name,
+          billTitle: title,
+          amount: amount,
+        );
+      }
       return null;
     } catch (e) {
       return e.toString();

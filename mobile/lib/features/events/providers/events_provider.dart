@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../shared/services/house_notification_service.dart';
 
 class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
   EventsNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -92,6 +93,7 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     String? eventEndTime,
     String? location,
     required String createdBy,
+    String creatorName = '',
     String? recurring,
     String? recurringUntil,
   }) async {
@@ -109,6 +111,12 @@ class EventsNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
         if (recurringUntil != null) 'recurringUntil': recurringUntil,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      HouseNotificationService.eventAdded(
+        houseId: _houseId,
+        createdBy: createdBy,
+        creatorName: creatorName.isNotEmpty ? creatorName : 'Alguém',
+        eventTitle: title,
+      );
       return null;
     } catch (e) {
       return e.toString();

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/shopping_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../shared/services/house_notification_service.dart';
 
 class ShoppingNotifier
     extends StateNotifier<AsyncValue<List<ShoppingItemModel>>> {
@@ -47,6 +48,7 @@ class ShoppingNotifier
     double? price,
     List<String> splitBetween = const [],
     required String addedBy,
+    String addedByName = '',
   }) async {
     try {
       await _col.add({
@@ -59,6 +61,12 @@ class ShoppingNotifier
         'addedBy': addedBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      HouseNotificationService.shoppingItemAdded(
+        houseId: _houseId,
+        createdBy: addedBy,
+        creatorName: addedByName.isNotEmpty ? addedByName : 'Alguém',
+        itemName: name,
+      );
       return null;
     } catch (e) {
       return e.toString();

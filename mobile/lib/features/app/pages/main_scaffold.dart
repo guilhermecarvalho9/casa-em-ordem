@@ -25,6 +25,8 @@ import '../../../shared/services/interstitial_ad_service.dart';
 import '../../../shared/services/version_service.dart';
 import '../../pro/providers/pro_provider.dart';
 import '../../pro/pages/pro_paywall_page.dart';
+import '../../notifications/pages/notifications_page.dart';
+import '../../../shared/providers/notifications_provider.dart';
 
 final currentPageProvider = StateProvider<String>((ref) => 'dashboard');
 
@@ -84,6 +86,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           ),
         ),
         actions: [
+          _buildNotificationBell(context),
           _buildThemeToggle(isDark),
           _buildLanguageToggle(appState.language, isDark),
           const SizedBox(width: 8),
@@ -121,6 +124,51 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       case 'settings': return const SettingsPage();
       default: return const DashboardPage();
     }
+  }
+
+  Widget _buildNotificationBell(BuildContext context) {
+    final count = ref.watch(unreadCountProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          icon: Icon(
+            Icons.notifications_rounded,
+            color: isDark ? AppColors.foregroundDark : AppColors.foreground,
+            size: 22,
+          ),
+          onPressed: () => NotificationsPage.show(context),
+        ),
+        if (count > 0)
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: AppColors.destructive,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? AppColors.cardDark : AppColors.card,
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  count > 9 ? '9+' : '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildThemeToggle(bool isDark) {

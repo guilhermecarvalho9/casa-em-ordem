@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import '../models/inventory_item_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../shared/services/house_notification_service.dart';
 
 class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel>>> {
   InventoryNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -51,6 +52,7 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
     required String ownerId,
     required String ownerName,
     required String createdBy,
+    String creatorName = '',
     String? description,
     File? photo,
   }) async {
@@ -71,6 +73,12 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
         'createdBy': createdBy,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      HouseNotificationService.inventoryItemAdded(
+        houseId: _houseId,
+        createdBy: createdBy,
+        creatorName: creatorName.isNotEmpty ? creatorName : ownerName,
+        itemName: name,
+      );
       return null;
     } catch (e) {
       return e.toString();
