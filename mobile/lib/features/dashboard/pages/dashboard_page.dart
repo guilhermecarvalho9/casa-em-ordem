@@ -359,7 +359,9 @@ class _TaskPreviewCard extends StatelessWidget {
           ),
           if (task.dueDate != null)
             Text(
-              _formatDate(task.dueDate as String),
+              task.dueTime != null
+                  ? '${_formatDate(task.dueDate as String)} ${task.dueTime}'
+                  : _formatDate(task.dueDate as String),
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,

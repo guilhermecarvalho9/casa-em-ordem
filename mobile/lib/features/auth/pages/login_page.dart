@@ -26,6 +26,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _obscurePassword = true;
   String? _errorMessage;
   String? _successMessage;
+  bool _acceptedTerms = false;
 
   @override
   void dispose() {
@@ -55,6 +56,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           setState(() {
             _loading = false;
             _countryError = true;
+          });
+          return;
+        }
+        if (!_acceptedTerms) {
+          setState(() {
+            _loading = false;
+            _errorMessage = 'Aceite os Termos de Uso para continuar.';
           });
           return;
         }
@@ -220,6 +228,50 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 ),
                               ),
                             ),
+                          ),
+                        ],
+                        if (_mode == _AuthMode.register) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: _acceptedTerms,
+                                  activeColor: AppColors.primary,
+                                  onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _acceptedTerms = !_acceptedTerms),
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                                      ),
+                                      children: const [
+                                        TextSpan(text: 'Li e aceito os '),
+                                        TextSpan(
+                                          text: 'Termos de Uso',
+                                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                                        ),
+                                        TextSpan(text: ' e a '),
+                                        TextSpan(
+                                          text: 'Política de Privacidade',
+                                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                                        ),
+                                        TextSpan(text: ' do Homio, incluindo o tratamento de dados conforme a LGPD.'),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                         if (_errorMessage != null) ...[

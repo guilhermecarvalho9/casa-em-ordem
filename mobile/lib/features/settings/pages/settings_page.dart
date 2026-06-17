@@ -132,6 +132,37 @@ class SettingsPage extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
 
+          // Join another house
+          _SectionTitle(title: 'Entrar em outra casa', isDark: isDark),
+          const SizedBox(height: 8),
+          _SettingsCard(
+            isDark: isDark,
+            children: [
+              ListTile(
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.home_work_outlined, color: AppColors.primary, size: 18),
+                ),
+                title: Text('Entrar em outra casa',
+                    style: GoogleFonts.inter(
+                        fontSize: 14, fontWeight: FontWeight.w500,
+                        color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                subtitle: Text('Use um código de convite',
+                    style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+                dense: true,
+                onTap: () => _showJoinHouseDialog(context, ref, t, isDark),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           // Permissions (admin only)
           if (authState.houseMembership?.isAdmin == true) ...[
             _SectionTitle(title: t('settings.management'), isDark: isDark),
@@ -284,6 +315,63 @@ class SettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  void _showJoinHouseDialog(BuildContext context, WidgetRef ref, String Function(String) t, bool isDark) {
+    final codeCtrl = TextEditingController();
+    bool loading = false;
+    String? error;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setState2) => AlertDialog(
+          title: Text('Entrar em outra casa',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Digite o código de convite da casa que deseja entrar.',
+                  style: GoogleFonts.inter(fontSize: 13)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: codeCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Código de convite',
+                  prefixIcon: Icon(Icons.key_rounded, size: 18),
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Text(error!, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFE53E3E))),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.cancel'))),
+            TextButton(
+              onPressed: loading ? null : () async {
+                if (codeCtrl.text.trim().isEmpty) return;
+                setState2(() { loading = true; error = null; });
+                final result = await ref.read(authProvider.notifier).joinHouse(codeCtrl.text.trim());
+                if (result != null) {
+                  setState2(() { loading = false; error = result; });
+                } else {
+                  if (ctx.mounted) Navigator.pop(ctx);
+                }
+              },
+              child: loading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Entrar'),
+            ),
+          ],
+        ),
       ),
     );
   }

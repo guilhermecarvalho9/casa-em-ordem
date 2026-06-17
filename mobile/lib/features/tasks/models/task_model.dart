@@ -7,6 +7,8 @@ class TaskModel {
   final String? description;
   final String? assignedTo;
   final String? dueDate;
+  final String? dueTime;
+  final String? reminderType; // 'none' | 'dayBefore' | 'hourBefore' | 'both'
   final bool completed;
   final String? recurring;
   final String? createdBy;
@@ -22,6 +24,8 @@ class TaskModel {
     this.description,
     this.assignedTo,
     this.dueDate,
+    this.dueTime,
+    this.reminderType,
     required this.completed,
     this.recurring,
     this.createdBy,
@@ -44,6 +48,8 @@ class TaskModel {
       description: map['description'] as String?,
       assignedTo: map['assignedTo'] as String?,
       dueDate: map['dueDate'] as String?,
+      dueTime: map['dueTime'] as String?,
+      reminderType: map['reminderType'] as String?,
       completed: map['completed'] as bool? ?? false,
       recurring: map['recurring'] as String?,
       createdBy: map['createdBy'] as String?,

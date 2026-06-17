@@ -18,6 +18,8 @@ import 'features/auth/pages/login_page.dart';
 import 'features/auth/pages/house_setup_page.dart';
 import 'features/auth/pages/expired_access_page.dart';
 import 'features/app/pages/main_scaffold.dart';
+import 'features/onboarding/pages/tutorial_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +73,8 @@ class _AppRoot extends ConsumerStatefulWidget {
 class _AppRootState extends ConsumerState<_AppRoot> {
   bool _versionChecked = false;
   bool _notificationsScheduled = false;
+  bool _showTutorial = false;
+  bool _tutorialChecked = false;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +88,8 @@ class _AppRootState extends ConsumerState<_AppRoot> {
     if (authState.user == null) {
       _versionChecked = false;
       _notificationsScheduled = false;
+      _tutorialChecked = false;
+      _showTutorial = false;
       return const LoginPage();
     }
 
@@ -93,6 +99,18 @@ class _AppRootState extends ConsumerState<_AppRoot> {
 
     if (authState.currentHouse == null) {
       return const HouseSetupPage();
+    }
+
+    if (!_tutorialChecked) {
+      _tutorialChecked = true;
+      SharedPreferences.getInstance().then((prefs) {
+        final seen = prefs.getBool('hasSeenTutorial') ?? false;
+        if (!seen && mounted) setState(() => _showTutorial = true);
+      });
+    }
+
+    if (_showTutorial) {
+      return TutorialPage(onDone: () => setState(() => _showTutorial = false));
     }
 
     if (!_versionChecked) {

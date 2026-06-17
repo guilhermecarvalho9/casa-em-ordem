@@ -313,7 +313,22 @@ class _TasksPageState extends ConsumerState<TasksPage>
     final descCtrl = TextEditingController();
     String? selectedAssignee;
     bool photoRequired = false;
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+    String reminderType = 'none';
     final formKey = GlobalKey<FormState>();
+
+    String fmtDate(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+    String fmtTime(TimeOfDay t) =>
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+    final reminderOptions = [
+      ('none', 'Sem lembrete'),
+      ('dayBefore', '1 dia antes'),
+      ('hourBefore', '1 hora antes'),
+      ('both', 'Ambos'),
+    ];
 
     showModalBottomSheet(
       context: context,
@@ -325,6 +340,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
       builder: (ctx) {
         final members = ref.read(membersProvider).valueOrNull ?? [];
         final authState = ref.read(authProvider);
+        final appState = ref.read(appProvider);
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -332,66 +348,158 @@ class _TasksPageState extends ConsumerState<TasksPage>
           ),
           child: Form(
             key: formKey,
-            child: StatefulBuilder(builder: (_, setState2) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(t('tasks.add'), style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w600, fontSize: 18,
-                  color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: titleCtrl,
-                  decoration: InputDecoration(labelText: t('common.title')),
-                  validator: (v) => v?.isEmpty == true ? t('common.required') : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: descCtrl,
-                  decoration: InputDecoration(labelText: t('common.description')),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 12),
-                if (members.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(labelText: t('tasks.assignedTo')),
-                    items: members.map((m) => DropdownMenuItem(
-                      value: m.userId,
-                      child: Text(m.name),
-                    )).toList(),
-                    onChanged: (v) => setState2(() => selectedAssignee = v),
+            child: StatefulBuilder(builder: (_, setState2) => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t('tasks.add'), style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w600, fontSize: 18,
+                    color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: titleCtrl,
+                    decoration: InputDecoration(labelText: t('common.title')),
+                    validator: (v) => v?.isEmpty == true ? t('common.required') : null,
                   ),
-                const SizedBox(height: 4),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(t('tasks.photoRequired'),
-                      style: GoogleFonts.inter(fontSize: 14, color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
-                  value: photoRequired,
-                  activeThumbColor: AppColors.primary,
-                  onChanged: (v) => setState2(() => photoRequired = v),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      await ref.read(tasksProvider.notifier).addTask(
-                        title: titleCtrl.text.trim(),
-                        description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-                        assignedTo: selectedAssignee,
-                        recurring: null,
-                        createdBy: authState.user?.uid ?? '',
-                        photoRequired: photoRequired,
-                      );
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                    child: Text(t('common.save')),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: descCtrl,
+                    decoration: InputDecoration(labelText: t('common.description')),
+                    maxLines: 2,
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 12),
+                  if (members.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(labelText: t('tasks.assignedTo')),
+                      items: members.map((m) => DropdownMenuItem(
+                        value: m.userId,
+                        child: Text(m.name),
+                      )).toList(),
+                      onChanged: (v) => setState2(() => selectedAssignee = v),
+                    ),
+                  const SizedBox(height: 12),
+                  // Date + Time row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                          label: Text(
+                            selectedDate != null ? fmtDate(selectedDate!) : 'Data (opcional)',
+                            style: GoogleFonts.inter(fontSize: 13),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          ),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDate ?? DateTime.now(),
+                              firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                              lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                              builder: (ctx, child) => Theme(
+                                data: Theme.of(ctx).copyWith(
+                                  colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppColors.primary),
+                                ),
+                                child: child!,
+                              ),
+                            );
+                            if (picked != null) setState2(() => selectedDate = picked);
+                          },
+                        ),
+                      ),
+                      if (selectedDate != null) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.access_time_rounded, size: 16),
+                            label: Text(
+                              selectedTime != null ? fmtTime(selectedTime!) : 'Horário',
+                              style: GoogleFonts.inter(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                            ),
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
+                                builder: (ctx, child) => Theme(
+                                  data: Theme.of(ctx).copyWith(
+                                    colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppColors.primary),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) setState2(() => selectedTime = picked);
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (selectedDate != null) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: reminderType,
+                      decoration: const InputDecoration(
+                        labelText: 'Lembrete',
+                        prefixIcon: Icon(Icons.notifications_outlined, size: 18),
+                      ),
+                      items: reminderOptions.map((o) => DropdownMenuItem(
+                        value: o.$1,
+                        child: Text(o.$2, style: GoogleFonts.inter(fontSize: 13)),
+                      )).toList(),
+                      onChanged: (v) => setState2(() => reminderType = v ?? 'none'),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(t('tasks.photoRequired'),
+                        style: GoogleFonts.inter(fontSize: 14, color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                    value: photoRequired,
+                    activeThumbColor: AppColors.primary,
+                    onChanged: (v) => setState2(() => photoRequired = v),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (!formKey.currentState!.validate()) return;
+                        String? dueDateStr;
+                        String? dueTimeStr;
+                        if (selectedDate != null) {
+                          dueDateStr = '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
+                        }
+                        if (selectedTime != null) {
+                          dueTimeStr = '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+                        }
+                        await ref.read(tasksProvider.notifier).addTask(
+                          title: titleCtrl.text.trim(),
+                          description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                          assignedTo: selectedAssignee,
+                          dueDate: dueDateStr,
+                          dueTime: dueTimeStr,
+                          reminderType: dueDateStr != null ? reminderType : null,
+                          recurring: null,
+                          createdBy: authState.user?.uid ?? '',
+                          photoRequired: photoRequired,
+                          language: appState.language,
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      child: Text(t('common.save')),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             )),
           ),
         );
@@ -498,7 +606,12 @@ class _TaskList extends ConsumerWidget {
                                 const SizedBox(width: 8),
                               ],
                               if (task.dueDate != null)
-                                Text(_formatDate(task.dueDate!), style: GoogleFonts.inter(fontSize: 11, color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                                Text(
+                                  task.dueTime != null
+                                      ? '${_formatDate(task.dueDate!)} ${task.dueTime}'
+                                      : _formatDate(task.dueDate!),
+                                  style: GoogleFonts.inter(fontSize: 11, color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                                ),
                               if (task.photoRequired) ...[
                                 const SizedBox(width: 6),
                                 Icon(Icons.camera_alt_outlined, size: 13, color: AppColors.accent),

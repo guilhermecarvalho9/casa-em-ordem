@@ -443,7 +443,26 @@ class _AppDrawer extends ConsumerWidget {
                     ),
                     onPressed: () {
                       Navigator.pop(context);
-                      ref.read(authProvider.notifier).signOut();
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Sair'),
+                          content: const Text('Tem certeza que deseja sair da sua conta?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancelar'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                ref.read(authProvider.notifier).signOut();
+                              },
+                              child: const Text('Sair', style: TextStyle(color: Color(0xFFE53E3E))),
+                            ),
+                          ],
+                        ),
+                      );
                     },
                   ),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

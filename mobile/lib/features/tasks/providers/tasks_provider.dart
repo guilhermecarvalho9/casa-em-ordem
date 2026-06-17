@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/task_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/services/notification_service.dart';
 
 class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   TasksNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -46,17 +47,22 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     String? description,
     String? assignedTo,
     String? dueDate,
+    String? dueTime,
+    String? reminderType,
     String? recurring,
     required String createdBy,
     bool photoRequired = false,
+    String language = 'pt',
   }) async {
     try {
-      await _col.add({
+      final doc = await _col.add({
         'houseId': _houseId,
         'title': title,
         if (description != null) 'description': description,
         if (assignedTo != null) 'assignedTo': assignedTo,
         if (dueDate != null) 'dueDate': dueDate,
+        if (dueTime != null) 'dueTime': dueTime,
+        if (reminderType != null) 'reminderType': reminderType,
         if (recurring != null) 'recurring': recurring,
         'completed': false,
         'createdBy': createdBy,
@@ -65,6 +71,16 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         'photosAfter': [],
         'createdAt': FieldValue.serverTimestamp(),
       });
+      if (dueDate != null && reminderType != null && reminderType != 'none') {
+        await NotificationService.instance.scheduleTaskReminder(
+          taskId: doc.id,
+          taskTitle: title,
+          dueDate: dueDate,
+          dueTime: dueTime,
+          reminderType: reminderType,
+          language: language,
+        );
+      }
       return null;
     } catch (e) {
       return e.toString();
@@ -103,6 +119,7 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   Future<String?> deleteTask(String taskId) async {
     try {
       await _col.doc(taskId).delete();
+      await NotificationService.instance.cancelTaskReminder(taskId);
       return null;
     } catch (e) {
       return e.toString();
