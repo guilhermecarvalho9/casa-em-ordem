@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import '../models/auth_models.dart';
+import '../../../core/services/cloudinary_service.dart';
 
 class AuthState {
   final User? user;
@@ -401,10 +401,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return 'Usuário não autenticado';
     try {
-      final ext = file.path.split('.').last;
-      final ref = FirebaseStorage.instance.ref('users/$uid/avatar.$ext');
-      await ref.putFile(file);
-      final url = await ref.getDownloadURL();
+      final url = await CloudinaryService.uploadImage(file);
       await _db.collection('users').doc(uid).update({'avatarUrl': url});
       if (state.currentHouse != null) {
         await _db

@@ -2,11 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:uuid/uuid.dart';
 import '../models/inventory_item_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../shared/services/house_notification_service.dart';
+import '../../../core/services/cloudinary_service.dart';
 
 class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel>>> {
   InventoryNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -15,7 +14,6 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
 
   final String _houseId;
   final _db = FirebaseFirestore.instance;
-  final _storage = FirebaseStorage.instance;
   StreamSubscription<QuerySnapshot>? _sub;
 
   CollectionReference get _col =>
@@ -88,11 +86,6 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
   Future<String?> deleteItem(String itemId, String? photoUrl) async {
     try {
       await _col.doc(itemId).delete();
-      if (photoUrl != null && photoUrl.isNotEmpty) {
-        try {
-          await _storage.refFromURL(photoUrl).delete();
-        } catch (_) {}
-      }
       return null;
     } catch (e) {
       return e.toString();
@@ -114,11 +107,6 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
       String? photoUrl = existingPhotoUrl;
       if (newPhoto != null) {
         photoUrl = await _uploadPhoto(newPhoto);
-        if (existingPhotoUrl != null && existingPhotoUrl.isNotEmpty) {
-          try {
-            await _storage.refFromURL(existingPhotoUrl).delete();
-          } catch (_) {}
-        }
       }
 
       await _col.doc(itemId).update({
@@ -144,10 +132,7 @@ class InventoryNotifier extends StateNotifier<AsyncValue<List<InventoryItemModel
   }
 
   Future<String> _uploadPhoto(File photo) async {
-    final id = const Uuid().v4();
-    final ref = _storage.ref('houses/$_houseId/inventory/$id.jpg');
-    await ref.putFile(photo, SettableMetadata(contentType: 'image/jpeg'));
-    return await ref.getDownloadURL();
+    return CloudinaryService.uploadImage(photo);
   }
 }
 

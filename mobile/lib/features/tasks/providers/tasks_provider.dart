@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../models/task_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/cloudinary_service.dart';
 
 class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   TasksNotifier(this._houseId) : super(const AsyncValue.loading()) {
@@ -89,11 +89,7 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
   Future<String?> addPhoto(String taskId, File file, {required bool isBefore}) async {
     try {
-      final ext = file.path.split('.').last;
-      final ref = FirebaseStorage.instance
-          .ref('houses/$_houseId/tasks/$taskId/${isBefore ? 'before' : 'after'}_${DateTime.now().millisecondsSinceEpoch}.$ext');
-      await ref.putFile(file);
-      final url = await ref.getDownloadURL();
+      final url = await CloudinaryService.uploadImage(file);
       final field = isBefore ? 'photosBefore' : 'photosAfter';
       await _col.doc(taskId).update({field: FieldValue.arrayUnion([url])});
       return null;
