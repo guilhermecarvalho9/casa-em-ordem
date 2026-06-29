@@ -194,6 +194,8 @@ class _BillsPageState extends ConsumerState<BillsPage>
             ? List.from(editing!.splitBetween)
             : List.from(allMemberIds);
         DateTime selectedDueDate = initialDate;
+        bool isRecurring = editing?.isRecurring ?? false;
+        String recurringFrequency = editing?.recurringFrequency ?? 'monthly';
 
         bool saving = false;
         return StatefulBuilder(
@@ -261,6 +263,57 @@ class _BillsPageState extends ConsumerState<BillsPage>
                           .toList(),
                       onChanged: (v) => setState2(() => selectedCategory = v ?? 'other'),
                     ),
+                    const SizedBox(height: 12),
+                    // Recurring toggle
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: isDark ? AppColors.borderDark : AppColors.border),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            title: Row(
+                              children: [
+                                const Icon(Icons.repeat_rounded, size: 18, color: AppColors.primary),
+                                const SizedBox(width: 8),
+                                Text('Conta recorrente',
+                                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500,
+                                        color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                              ],
+                            ),
+                            subtitle: Text('Gera nova conta automaticamente ao pagar',
+                                style: GoogleFonts.inter(fontSize: 11,
+                                    color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                            value: isRecurring,
+                            onChanged: (v) => setState2(() => isRecurring = v),
+                            activeColor: AppColors.primary,
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          ),
+                          if (isRecurring) ...[
+                            Divider(height: 1, color: isDark ? AppColors.borderDark : AppColors.border),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                              child: DropdownButtonFormField<String>(
+                                value: recurringFrequency,
+                                decoration: const InputDecoration(
+                                  labelText: 'Frequência',
+                                  isDense: true,
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'weekly', child: Text('Semanal')),
+                                  DropdownMenuItem(value: 'biweekly', child: Text('Quinzenal')),
+                                  DropdownMenuItem(value: 'monthly', child: Text('Mensal')),
+                                  DropdownMenuItem(value: 'yearly', child: Text('Anual')),
+                                ],
+                                onChanged: (v) => setState2(() => recurringFrequency = v ?? 'monthly'),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     if (members.isNotEmpty) ...[
                       Text(t('bills.splitSelect'),
@@ -322,6 +375,8 @@ class _BillsPageState extends ConsumerState<BillsPage>
                               category: selectedCategory,
                               splitBetween: selectedMembers,
                               createdBy: authState.user?.uid ?? '',
+                              isRecurring: isRecurring,
+                              recurringFrequency: isRecurring ? recurringFrequency : null,
                             );
                           } else {
                             await ref.read(billsProvider.notifier).updateBill(
@@ -331,6 +386,8 @@ class _BillsPageState extends ConsumerState<BillsPage>
                               dueDate: dueDateStr,
                               category: selectedCategory,
                               splitBetween: selectedMembers,
+                              isRecurring: isRecurring,
+                              recurringFrequency: isRecurring ? recurringFrequency : null,
                             );
                           }
                           if (ctx.mounted) Navigator.pop(ctx);
@@ -453,6 +510,23 @@ class _BillList extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
                     if (!bill.paid) _DueDateBadge(dueDate: bill.dueDate, t: t),
+                    if (bill.isRecurring) ...[
+                      const SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.repeat_rounded, size: 11,
+                              color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                          const SizedBox(width: 3),
+                          Text(
+                            _frequencyLabel(bill.recurringFrequency ?? 'monthly'),
+                            style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -515,6 +589,15 @@ class _BillList extends ConsumerWidget {
       case 'utilities': return t('bills.category.utilities');
       case 'internet': return t('bills.category.internet');
       default: return t('bills.category.other');
+    }
+  }
+
+  String _frequencyLabel(String frequency) {
+    switch (frequency) {
+      case 'weekly': return 'Semanal';
+      case 'biweekly': return 'Quinzenal';
+      case 'yearly': return 'Anual';
+      default: return 'Mensal';
     }
   }
 }

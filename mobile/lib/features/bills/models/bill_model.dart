@@ -12,6 +12,8 @@ class BillModel {
   final String category;
   final String? createdBy;
   final String createdAt;
+  final bool isRecurring;
+  final String? recurringFrequency; // 'weekly', 'biweekly', 'monthly', 'yearly'
 
   const BillModel({
     required this.id,
@@ -25,6 +27,8 @@ class BillModel {
     required this.category,
     this.createdBy,
     required this.createdAt,
+    this.isRecurring = false,
+    this.recurringFrequency,
   });
 
   factory BillModel.fromMap(String id, Map<String, dynamic> map) {
@@ -42,6 +46,8 @@ class BillModel {
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate().toIso8601String()
           : (map['createdAt'] as String? ?? ''),
+      isRecurring: map['isRecurring'] as bool? ?? false,
+      recurringFrequency: map['recurringFrequency'] as String?,
     );
   }
 

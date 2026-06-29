@@ -147,11 +147,43 @@ class MembersPage extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
               // Info rows
-              _ProfileInfoRow(
-                icon: Icons.calendar_today_outlined,
-                label: t('members.entry'),
-                value: formatDate(member.entryDate),
-                isDark: isDark,
+              Row(
+                children: [
+                  Expanded(
+                    child: _ProfileInfoRow(
+                      icon: Icons.calendar_today_outlined,
+                      label: t('members.entry'),
+                      value: formatDate(member.entryDate),
+                      isDark: isDark,
+                    ),
+                  ),
+                  if (isAdmin || isCurrentUser)
+                    IconButton(
+                      icon: Icon(Icons.edit_outlined, size: 16,
+                          color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Editar data de entrada',
+                      onPressed: () async {
+                        final initial = DateTime.tryParse(member.entryDate) ?? DateTime.now();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: initial,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                          builder: (ctx, child) => Theme(
+                            data: Theme.of(ctx).copyWith(
+                              colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppColors.primary),
+                            ),
+                            child: child!,
+                          ),
+                        );
+                        if (picked != null) {
+                          final iso = picked.toIso8601String().split('T').first;
+                          await ref.read(membersProvider.notifier).updateEntryDate(member.id, iso);
+                        }
+                      },
+                    ),
+                ],
               ),
               if (member.expiresAt != null)
                 _ProfileInfoRow(

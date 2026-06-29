@@ -80,6 +80,15 @@ class MembersNotifier extends StateNotifier<AsyncValue<List<MemberModel>>> {
     }
   }
 
+  Future<String?> updateEntryDate(String memberId, String dateIso) async {
+    try {
+      await _col.doc(memberId).update({'entryDate': dateIso});
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<String?> removeMember(String memberId) async {
     try {
       await _col.doc(memberId).delete();

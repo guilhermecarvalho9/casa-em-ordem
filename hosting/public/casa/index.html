@@ -206,7 +206,8 @@
 
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
-  import { getFirestore, collection, query, where, limit, getDocs, orderBy } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
+  import { getFirestore, collection, query, where, limit, getDocs } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
+  import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDh7Q6rnKbw11eTUn27y234eu-iX6QwwLQ",
@@ -218,11 +219,14 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
 
   function show(id) { document.getElementById(id).style.display = ''; }
   function hide(id) { document.getElementById(id).style.display = 'none'; }
 
   async function load() {
+    // Authenticate anonymously so Firestore rules allow the list query
+    try { await signInAnonymously(auth); } catch (_) {}
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
 

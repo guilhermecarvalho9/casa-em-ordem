@@ -41,6 +41,22 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
     super.dispose();
   }
 
+  String _nextDueDate(String currentDueDate, String frequency) {
+    final date = DateTime.parse(currentDueDate);
+    final DateTime next;
+    if (frequency == 'weekly') {
+      next = date.add(const Duration(days: 7));
+    } else if (frequency == 'biweekly') {
+      next = date.add(const Duration(days: 14));
+    } else if (frequency == 'yearly') {
+      next = DateTime(date.year + 1, date.month, date.day);
+    } else {
+      // monthly (default)
+      next = DateTime(date.year, date.month + 1, date.day);
+    }
+    return next.toIso8601String().split('T').first;
+  }
+
   Future<String?> addBill({
     required String title,
     required double amount,
@@ -49,6 +65,8 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
     required List<String> splitBetween,
     required String createdBy,
     String creatorName = '',
+    bool isRecurring = false,
+    String? recurringFrequency,
   }) async {
     try {
       final doc = await _col.add({
@@ -61,6 +79,8 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
         'paid': false,
         'createdBy': createdBy,
         'createdAt': FieldValue.serverTimestamp(),
+        if (isRecurring) 'isRecurring': true,
+        if (isRecurring && recurringFrequency != null) 'recurringFrequency': recurringFrequency,
       });
       NotificationService.instance.scheduleBillReminders(
         billId: doc.id,
@@ -98,6 +118,23 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
       });
       if (paid) {
         NotificationService.instance.cancelBillReminders(billId);
+        // Auto-create next occurrence for recurring bills
+        if (bill != null && bill.isRecurring && bill.recurringFrequency != null) {
+          final nextDue = _nextDueDate(bill.dueDate, bill.recurringFrequency!);
+          await _col.add({
+            'houseId': _houseId,
+            'title': bill.title,
+            'amount': bill.amount,
+            'dueDate': nextDue,
+            'category': bill.category,
+            'splitBetween': bill.splitBetween,
+            'paid': false,
+            'createdBy': bill.createdBy ?? '',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRecurring': true,
+            'recurringFrequency': bill.recurringFrequency,
+          });
+        }
       } else if (bill != null) {
         NotificationService.instance.scheduleBillReminders(
           billId: bill.id,
@@ -115,6 +152,8 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
     required String dueDate,
     required String category,
     required List<String> splitBetween,
+    bool isRecurring = false,
+    String? recurringFrequency,
   }) async {
     try {
       await _col.doc(billId).update({
@@ -123,6 +162,11 @@ class BillsNotifier extends StateNotifier<AsyncValue<List<BillModel>>> {
         'dueDate': dueDate,
         'category': category,
         'splitBetween': splitBetween,
+        'isRecurring': isRecurring,
+        if (isRecurring && recurringFrequency != null)
+          'recurringFrequency': recurringFrequency
+        else
+          'recurringFrequency': FieldValue.delete(),
       });
       NotificationService.instance.scheduleBillReminders(
         billId: billId,

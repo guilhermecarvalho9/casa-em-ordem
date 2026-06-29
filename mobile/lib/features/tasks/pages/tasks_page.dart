@@ -118,10 +118,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
     );
   }
 
-  void _showTaskDetail(BuildContext context, TaskModel task, bool isDark, String Function(String) t) {
-    final members = ref.read(membersProvider).valueOrNull ?? [];
-    final assignee = members.where((m) => m.userId == task.assignedTo).firstOrNull;
-
+  void _showTaskDetail(BuildContext context, TaskModel initialTask, bool isDark, String Function(String) t) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -130,172 +127,203 @@ class _TasksPageState extends ConsumerState<TasksPage>
         initialChildSize: 0.6,
         maxChildSize: 0.92,
         minChildSize: 0.4,
-        builder: (ctx, scrollCtrl) => StatefulBuilder(
-          builder: (ctx2, setSheet) => Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.cardDark : AppColors.card,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 4),
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.borderDark : AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+        builder: (ctx, scrollCtrl) => Consumer(
+          builder: (ctx2, ref2, _) {
+            // Reactively get latest task so photo list updates immediately
+            final tasks = ref2.watch(tasksProvider).valueOrNull ?? [];
+            final task = tasks.where((t) => t.id == initialTask.id).firstOrNull ?? initialTask;
+            final members = ref2.watch(membersProvider).valueOrNull ?? [];
+            final assignee = members.where((m) => m.userId == task.assignedTo).firstOrNull;
+            bool uploading = false;
+
+            return StatefulBuilder(
+              builder: (ctx3, setSheet) => Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.cardDark : AppColors.card,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                Expanded(
-                  child: ListView(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      // Title row with checkbox
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 12, bottom: 4),
+                      width: 36, height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.borderDark : AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        controller: scrollCtrl,
+                        padding: const EdgeInsets.all(20),
                         children: [
-                          GestureDetector(
-                            onTap: () async {
-                              if (task.photoRequired && !task.completed && task.photosBefore.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(t('tasks.photoRequiredWarning'))),
-                                );
-                                return;
-                              }
-                              await ref.read(tasksProvider.notifier).toggleComplete(task.id, !task.completed);
-                              if (ctx2.mounted) Navigator.pop(ctx2);
-                            },
-                            child: Container(
-                              width: 24, height: 24, margin: const EdgeInsets.only(top: 2),
-                              decoration: BoxDecoration(
-                                color: task.completed ? AppColors.primary : Colors.transparent,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: task.completed ? AppColors.primary : (isDark ? AppColors.borderDark : AppColors.border),
-                                  width: 1.5,
+                          // Title row with checkbox
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              GestureDetector(
+                                onTap: () async {
+                                  if (task.photoRequired && !task.completed && task.photosBefore.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(t('tasks.photoRequiredWarning'))),
+                                    );
+                                    return;
+                                  }
+                                  await ref2.read(tasksProvider.notifier).toggleComplete(task.id, !task.completed);
+                                  if (ctx3.mounted) Navigator.pop(ctx3);
+                                },
+                                child: Container(
+                                  width: 24, height: 24, margin: const EdgeInsets.only(top: 2),
+                                  decoration: BoxDecoration(
+                                    color: task.completed ? AppColors.primary : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: task.completed ? AppColors.primary : (isDark ? AppColors.borderDark : AppColors.border),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: task.completed
+                                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                                      : null,
                                 ),
                               ),
-                              child: task.completed
-                                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
-                                  : null,
-                            ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  task.title,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 18, fontWeight: FontWeight.w700,
+                                    color: isDark ? AppColors.foregroundDark : AppColors.foreground,
+                                    decoration: task.completed ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              task.title,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 18, fontWeight: FontWeight.w700,
-                                color: isDark ? AppColors.foregroundDark : AppColors.foreground,
-                                decoration: task.completed ? TextDecoration.lineThrough : null,
+                          const SizedBox(height: 16),
+
+                          // Badges row
+                          Wrap(
+                            spacing: 8, runSpacing: 6,
+                            children: [
+                              if (task.photoRequired)
+                                _Badge(
+                                  icon: Icons.camera_alt_outlined,
+                                  label: t('tasks.photoRequired'),
+                                  color: AppColors.accent,
+                                ),
+                              if (task.recurring != null)
+                                _Badge(
+                                  icon: Icons.repeat_rounded,
+                                  label: _recurringLabel(task.recurring!, t),
+                                  color: AppColors.primary,
+                                ),
+                              if (task.dueDate != null)
+                                _Badge(
+                                  icon: Icons.calendar_today_outlined,
+                                  label: _formatDate(task.dueDate!),
+                                  color: AppColors.mutedForeground,
+                                ),
+                            ],
+                          ),
+
+                          // Description
+                          if (task.description != null && task.description!.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              task.description!,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
+                                height: 1.5,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Badges row
-                      Wrap(
-                        spacing: 8, runSpacing: 6,
-                        children: [
-                          if (task.photoRequired)
-                            _Badge(
-                              icon: Icons.camera_alt_outlined,
-                              label: t('tasks.photoRequired'),
-                              color: AppColors.accent,
-                            ),
-                          if (task.recurring != null)
-                            _Badge(
-                              icon: Icons.repeat_rounded,
-                              label: _recurringLabel(task.recurring!, t),
-                              color: AppColors.primary,
-                            ),
-                          if (task.dueDate != null)
-                            _Badge(
-                              icon: Icons.calendar_today_outlined,
-                              label: _formatDate(task.dueDate!),
-                              color: AppColors.mutedForeground,
-                            ),
-                        ],
-                      ),
-
-                      // Description
-                      if (task.description != null && task.description!.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          task.description!,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-
-                      // Assignee
-                      if (assignee != null) ...[
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            MemberAvatar(name: assignee.name, color: assignee.color, radius: 14),
-                            const SizedBox(width: 8),
-                            Text(assignee.name,
-                                style: GoogleFonts.inter(fontSize: 13, color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
                           ],
-                        ),
-                      ],
 
-                      const SizedBox(height: 20),
-                      const Divider(),
-                      const SizedBox(height: 12),
+                          // Assignee
+                          if (assignee != null) ...[
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                MemberAvatar(name: assignee.name, color: assignee.color, radius: 14),
+                                const SizedBox(width: 8),
+                                Text(assignee.name,
+                                    style: GoogleFonts.inter(fontSize: 13, color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                              ],
+                            ),
+                          ],
 
-                      // Photos Before
-                      _PhotoSection(
-                        label: t('tasks.photosBefore'),
-                        photos: task.photosBefore,
-                        isDark: isDark,
-                        onAdd: () async {
-                          final file = await _pickImage();
-                          if (file != null) {
-                            await ref.read(tasksProvider.notifier).addPhoto(task.id, file, isBefore: true);
-                            if (ctx2.mounted) Navigator.pop(ctx2);
-                          }
-                        },
-                        onRemove: (url) async {
-                          await ref.read(tasksProvider.notifier).removePhoto(task.id, url, isBefore: true);
-                          if (ctx2.mounted) Navigator.pop(ctx2);
-                        },
-                        t: t,
+                          const SizedBox(height: 20),
+                          const Divider(),
+                          const SizedBox(height: 12),
+
+                          if (uploading)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2)),
+                            ),
+
+                          // Photos Before
+                          _PhotoSection(
+                            label: t('tasks.photosBefore'),
+                            photos: task.photosBefore,
+                            isDark: isDark,
+                            onAdd: () async {
+                              final file = await _pickImage();
+                              if (file != null && ctx3.mounted) {
+                                setSheet(() => uploading = true);
+                                final err = await ref2.read(tasksProvider.notifier).addPhoto(task.id, file, isBefore: true);
+                                if (ctx3.mounted) {
+                                  setSheet(() => uploading = false);
+                                  if (err != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Erro ao enviar foto: $err'), backgroundColor: AppColors.destructive),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                            onRemove: (url) async {
+                              await ref2.read(tasksProvider.notifier).removePhoto(task.id, url, isBefore: true);
+                            },
+                            t: t,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Photos After
+                          _PhotoSection(
+                            label: t('tasks.photosAfter'),
+                            photos: task.photosAfter,
+                            isDark: isDark,
+                            onAdd: () async {
+                              final file = await _pickImage();
+                              if (file != null && ctx3.mounted) {
+                                setSheet(() => uploading = true);
+                                final err = await ref2.read(tasksProvider.notifier).addPhoto(task.id, file, isBefore: false);
+                                if (ctx3.mounted) {
+                                  setSheet(() => uploading = false);
+                                  if (err != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Erro ao enviar foto: $err'), backgroundColor: AppColors.destructive),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                            onRemove: (url) async {
+                              await ref2.read(tasksProvider.notifier).removePhoto(task.id, url, isBefore: false);
+                            },
+                            t: t,
+                          ),
+                          const SizedBox(height: 24),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-
-                      // Photos After
-                      _PhotoSection(
-                        label: t('tasks.photosAfter'),
-                        photos: task.photosAfter,
-                        isDark: isDark,
-                        onAdd: () async {
-                          final file = await _pickImage();
-                          if (file != null) {
-                            await ref.read(tasksProvider.notifier).addPhoto(task.id, file, isBefore: false);
-                            if (ctx2.mounted) Navigator.pop(ctx2);
-                          }
-                        },
-                        onRemove: (url) async {
-                          await ref.read(tasksProvider.notifier).removePhoto(task.id, url, isBefore: false);
-                          if (ctx2.mounted) Navigator.pop(ctx2);
-                        },
-                        t: t,
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

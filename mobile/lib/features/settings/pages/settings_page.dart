@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/translations.dart';
 import '../../app/providers/app_provider.dart';
@@ -9,6 +11,10 @@ import '../../auth/providers/auth_provider.dart';
 import '../../permissions/pages/permissions_page.dart';
 import '../../pro/providers/pro_provider.dart';
 import '../../pro/pages/pro_paywall_page.dart';
+
+const _androidPackageId = 'br.com.hg2tecnologia.homio';
+// TODO: replace with your Apple App Store numeric ID when the app is published
+const _iosAppStoreId = '';
 
 const _appVersion = '1.0.0';
 
@@ -261,6 +267,37 @@ class SettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
+          // Rate app
+          _SectionTitle(title: 'Apoie o Homio', isDark: isDark),
+          const SizedBox(height: 8),
+          _SettingsCard(
+            isDark: isDark,
+            children: [
+              ListTile(
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
+                ),
+                title: Text('Avaliar o Homio',
+                    style: GoogleFonts.inter(
+                        fontSize: 14, fontWeight: FontWeight.w500,
+                        color: isDark ? AppColors.foregroundDark : AppColors.foreground)),
+                subtitle: Text('Conte o que achou do app',
+                    style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground)),
+                trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+                dense: true,
+                onTap: () => _showRatingDialog(context, t, isDark),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           // Account
           _SectionTitle(title: t('settings.account'), isDark: isDark),
           const SizedBox(height: 8),
@@ -315,6 +352,108 @@ class SettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  void _showRatingDialog(BuildContext context, String Function(String) t, bool isDark) {
+    int selectedStars = 0;
+    bool submitted = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setState2) {
+          if (submitted) {
+            return AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.favorite_rounded, color: AppColors.primary, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    selectedStars >= 4
+                        ? 'Obrigado! 🎉\nRedirecionando para a loja...'
+                        : 'Obrigado pelo feedback!\nVamos continuar melhorando.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 14),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Fechar'),
+                ),
+              ],
+            );
+          }
+
+          return AlertDialog(
+            title: Text('Avaliar o Homio',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Como você avalia o Homio?',
+                    style: GoogleFonts.inter(fontSize: 13),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (i) {
+                    return GestureDetector(
+                      onTap: () => setState2(() => selectedStars = i + 1),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Icon(
+                          i < selectedStars ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: Colors.amber,
+                          size: 40,
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                if (selectedStars > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    selectedStars >= 4 ? 'Que ótimo! 😊' : 'Obrigado pelo seu feedback!',
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.mutedForeground),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(t('common.cancel')),
+              ),
+              if (selectedStars > 0)
+                TextButton(
+                  onPressed: () async {
+                    setState2(() => submitted = true);
+                    if (selectedStars >= 4) {
+                      await Future.delayed(const Duration(milliseconds: 800));
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      final Uri storeUri;
+                      if (defaultTargetPlatform == TargetPlatform.iOS && _iosAppStoreId.isNotEmpty) {
+                        storeUri = Uri.parse('itms-apps://itunes.apple.com/app/id$_iosAppStoreId?action=write-review');
+                      } else {
+                        storeUri = Uri.parse('https://play.google.com/store/apps/details?id=$_androidPackageId');
+                      }
+                      launchUrl(storeUri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  child: Text(
+                    'Enviar',
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600, color: AppColors.primary),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

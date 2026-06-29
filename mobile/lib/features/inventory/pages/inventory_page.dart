@@ -530,6 +530,7 @@ class _InventoryCard extends StatelessWidget {
             borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
             child: SizedBox(
               width: 80,
+              height: 80,
               child: item.photoUrl != null
                   ? CachedNetworkImage(
                       imageUrl: item.photoUrl!,
