@@ -13,8 +13,7 @@ import '../../pro/providers/pro_provider.dart';
 import '../../pro/pages/pro_paywall_page.dart';
 
 const _androidPackageId = 'br.com.hg2tecnologia.homio';
-// TODO: replace with your Apple App Store numeric ID when the app is published
-const _iosAppStoreId = '';
+const _iosAppStoreId = '6775571787';
 
 const _appVersion = '1.0.0';
 
